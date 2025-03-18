@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../config/supabaseClient';
 import { Button } from 'react-native-paper';
@@ -22,10 +22,11 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Skintellect!</Text>
+      <Image source={require('../assets/skincare.png')} style={styles.image} />
+      <Text style={styles.title}>Welcome to Skintellect</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} />
-      <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" keyboardType="email-address"  />
+      <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} autoCapitalize="none"  />
       <Button mode="contained" onPress={handleLogin} style={styles.button}>Login</Button>
       <TouchableOpacity onPress={() => navigation.navigate<'SignUp'>('SignUp')}>
         <Text style={styles.link}>Don't have an account? Sign up</Text>
@@ -40,6 +41,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF5F5',
+    paddingHorizontal: 20,
+  },
+  image: {
+    width: 200,
+    height: 200,
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,

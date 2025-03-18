@@ -29,9 +29,9 @@ const SignUpScreen = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Join us!</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} />
-      <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
-      <TextInput placeholder="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry style={styles.input} />
+      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" />
+      <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} autoCapitalize="none" />
+      <TextInput placeholder="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry style={styles.input} autoCapitalize="none" />
       <Button mode="contained" onPress={handleSignUp} style={styles.button}>Sign Up</Button>
       <TouchableOpacity onPress={() => navigation.navigate<'Login'>('Login')}>
         <Text style={styles.link}>Already have an account? Log in</Text>
