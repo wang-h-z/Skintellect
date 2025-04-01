@@ -36,24 +36,24 @@ const ProfileScreen = () => {
       }
 
       // Get user profile
-      const { data, error } = await supabase
+      const { data, error: supabaseError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        throw error;
+      if (supabaseError) {
+        throw supabaseError;
       }
 
       // Add email from auth
       setProfile({
         ...data,
-        email: user.email,
+        email: user.email || '',
       });
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      setError(error.message);
+    } catch (err: any) {
+      console.error('Error fetching profile:', err);
+      setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ const ProfileScreen = () => {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigation.reset({
+    (navigation as any).reset({
       index: 0,
       routes: [{ name: 'Auth' }],
     });

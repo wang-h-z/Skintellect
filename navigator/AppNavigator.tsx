@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
+import { Session } from '@supabase/supabase-js';
 
 // Auth screens
 import LoginScreen from '../screens/LoginScreen';
@@ -17,7 +18,8 @@ import SkinTypeScreen from '../screens/onboarding/SkinTypeScreen';
 import SkinConditionScreen from '../screens/onboarding/SkinConditionScreen';
 import ConfirmationScreen from '../screens/onboarding/ConfirmationScreen';
 
-// Main app screens
+// Main app screens - update these paths to match your actual file structure
+// If files are in a different location, adjust the imports accordingly
 import ScanFaceScreen from '../screens/ScanFaceScreen';
 import ShopScreen from '../screens/ShopScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -102,7 +104,7 @@ const MainTabsNavigator = () => {
         name="Scan"
         component={ScanFaceScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Feather name="camera" size={size} color={color} />
           ),
         }}
@@ -111,7 +113,7 @@ const MainTabsNavigator = () => {
         name="Shop"
         component={ShopScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Feather name="shopping-bag" size={size} color={color} />
           ),
         }}
@@ -120,7 +122,7 @@ const MainTabsNavigator = () => {
         name="Self"
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
             <Feather name="user" size={size} color={color} />
           ),
         }}
@@ -132,7 +134,7 @@ const MainTabsNavigator = () => {
 // Root app navigator
 const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [hasOnboarded, setHasOnboarded] = useState(false);
 
   useEffect(() => {
@@ -164,7 +166,7 @@ const AppNavigator = () => {
     };
   }, []);
 
-  const checkOnboardingStatus = async (userId) => {
+  const checkOnboardingStatus = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')

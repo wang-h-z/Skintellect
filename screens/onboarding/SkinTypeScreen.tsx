@@ -42,7 +42,7 @@ const SkinTypeScreen = () => {
   const handleNext = () => {
     if (selectedSkinType) {
       updateSkinType(selectedSkinType);
-      navigation.navigate('SkinConditionScreen');
+      (navigation as any).navigate('SkinConditionScreen');;
     }
   };
 
