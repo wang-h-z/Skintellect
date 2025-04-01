@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
 import { Session } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Auth screens
 import LoginScreen from '../screens/LoginScreen';
@@ -18,8 +19,7 @@ import SkinTypeScreen from '../screens/onboarding/SkinTypeScreen';
 import SkinConditionScreen from '../screens/onboarding/SkinConditionScreen';
 import ConfirmationScreen from '../screens/onboarding/ConfirmationScreen';
 
-// Main app screens - update these paths to match your actual file structure
-// If files are in a different location, adjust the imports accordingly
+// Main app screens
 import ScanFaceScreen from '../screens/ScanFaceScreen';
 import ShopScreen from '../screens/ShopScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -131,30 +131,78 @@ const MainTabsNavigator = () => {
   );
 };
 
+// Constants for storage keys
+const SESSION_KEY = 'skintellect_session';
+const ONBOARDED_KEY = 'skintellect_onboarded';
+
 // Root app navigator
 const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [hasOnboarded, setHasOnboarded] = useState(false);
 
+  // Load persisted session and onboarding status
   useEffect(() => {
-    // Check if user is signed in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        checkOnboardingStatus(session.user.id);
-      } else {
+    const loadPersistedState = async () => {
+      try {
+        // Get persisted session and onboarded status from AsyncStorage
+        const [sessionData, onboardedData] = await Promise.all([
+          AsyncStorage.getItem(SESSION_KEY),
+          AsyncStorage.getItem(ONBOARDED_KEY)
+        ]);
+
+        // If we have a persisted session, use it
+        if (sessionData) {
+          const parsedSession = JSON.parse(sessionData);
+          setSession(parsedSession);
+          
+          // If session is still valid, check onboarded status from Storage or API
+          if (parsedSession && parsedSession.user && parsedSession.expires_at > Date.now() / 1000) {
+            if (onboardedData === 'true') {
+              setHasOnboarded(true);
+              setLoading(false);
+              return; // Skip the API call if we have cached data
+            } else {
+              await checkOnboardingStatus(parsedSession.user.id);
+            }
+          }
+        }
+
+        // Get current session from Supabase (handles expired sessions)
+        const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+        setSession(supabaseSession);
+        
+        if (supabaseSession) {
+          // Cache the session
+          await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
+          await checkOnboardingStatus(supabaseSession.user.id);
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading persisted state:', error);
         setLoading(false);
       }
-    });
+    };
+
+    loadPersistedState();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        if (session) {
-          await checkOnboardingStatus(session.user.id);
+      async (event, supabaseSession) => {
+        console.log("Auth state changed:", event);
+        setSession(supabaseSession);
+        
+        if (supabaseSession) {
+          // Cache the new session
+          await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
+          await checkOnboardingStatus(supabaseSession.user.id);
         } else {
+          // Clear cached data on signout
+          if (event === 'SIGNED_OUT') {
+            await AsyncStorage.removeItem(SESSION_KEY);
+            await AsyncStorage.removeItem(ONBOARDED_KEY);
+          }
           setHasOnboarded(false);
           setLoading(false);
         }
@@ -168,6 +216,7 @@ const AppNavigator = () => {
 
   const checkOnboardingStatus = async (userId: string) => {
     try {
+      console.log("Checking onboarding status for user:", userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('has_onboarded')
@@ -178,10 +227,14 @@ const AppNavigator = () => {
         console.error('Error checking onboarding status:', error);
         setHasOnboarded(false);
       } else {
-        setHasOnboarded(data?.has_onboarded || false);
+        const onboarded = data?.has_onboarded || false;
+        setHasOnboarded(onboarded);
+        
+        // Cache the onboarding status
+        await AsyncStorage.setItem(ONBOARDED_KEY, onboarded ? 'true' : 'false');
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error checking onboarding status:', error);
       setHasOnboarded(false);
     } finally {
       setLoading(false);

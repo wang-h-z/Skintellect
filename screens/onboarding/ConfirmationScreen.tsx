@@ -1,22 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import OnboardingLayout from './OnboardingLayout';
 import { useOnboarding, SkinType, SkinCondition, Gender } from '../../context/OnboardingContext';
+import { supabase } from '../../config/supabaseClient';
 
 const ConfirmationScreen = () => {
   const navigation = useNavigation();
   const { userProfile, completeOnboarding, isLoading, error } = useOnboarding();
+  const [processingComplete, setProcessingComplete] = useState(false);
 
   const handleFinish = async () => {
-    await completeOnboarding();
-    if (!error) {
-      // Using any here to bypass type checking for navigation
-      // You can replace this with proper typing later
-      (navigation as any).reset({
-        index: 0,
-        routes: [{ name: 'MainApp' }],
-      });
+    try {
+      // Complete the onboarding process which updates the database
+      await completeOnboarding();
+      setProcessingComplete(true);
+      
+      if (!error) {
+        // Force the session to refresh - this is the simplest approach
+        // This will trigger the auth state change in AppNavigator
+        // which will then check onboarding status and show MainTabs
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.error("Error refreshing session:", refreshError);
+        }
+      }
+    } catch (err) {
+      console.error("Error in handleFinish:", err);
     }
   };
 
@@ -65,7 +75,7 @@ const ConfirmationScreen = () => {
       title="Confirm Your Information"
       step={5}
       totalSteps={5}
-      nextDisabled={isLoading}
+      nextDisabled={isLoading || processingComplete}
       onNext={handleFinish}
       onBack={handleBack}
     >

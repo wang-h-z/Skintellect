@@ -4,27 +4,23 @@ import { useNavigation } from '@react-navigation/native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Import Camera from expo-camera
-import { Camera as ExpoCamera } from 'expo-camera';
-
-// Define the Camera component explicitly to avoid TypeScript errors
-const Camera = ExpoCamera;
+import { Camera, CameraType } from 'expo-camera'; // Import directly
 
 const ScanFaceScreen = () => {
+  console.log('Camera =>', Camera);
   const navigation = useNavigation();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  // Use strings for camera type to avoid enum type issues
-  const [cameraType, setCameraType] = useState('front');
+  const [cameraType, setCameraType] = useState(CameraType.front);
   const [photo, setPhoto] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const [skinConditions, setSkinConditions] = useState<string[]>([]);
-  const cameraRef = useRef(null);
+  const cameraRef = useRef<Camera>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await ExpoCamera.requestCameraPermissionsAsync();
+        const { status } = await Camera.requestCameraPermissionsAsync();
         setHasPermission(status === 'granted');
       } catch (err) {
         console.error('Error requesting camera permissions:', err);
@@ -36,10 +32,8 @@ const ScanFaceScreen = () => {
   const takePicture = async () => {
     if (cameraRef.current) {
       try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
-        });
-        setPhoto(photo.uri);
+        const photoData = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+        setPhoto(photoData.uri);
       } catch (error) {
         console.error('Error taking picture:', error);
         Alert.alert('Error', 'Failed to take picture. Please try again.');
@@ -55,7 +49,6 @@ const ScanFaceScreen = () => {
 
   const analyzePicture = async () => {
     setAnalyzing(true);
-    
     // Simulate analysis delay
     setTimeout(() => {
       const mockConditions = ['Acne', 'Dryness'];
@@ -65,14 +58,21 @@ const ScanFaceScreen = () => {
     }, 3000);
   };
 
+  // Use CameraType for flipping the camera
   const flipCamera = () => {
     setCameraType(
-      cameraType === 'back' ? 'front' : 'back'
+      cameraType === CameraType.back
+        ? CameraType.front
+        : CameraType.back
     );
   };
 
   if (hasPermission === null) {
-    return <View style={styles.centerContainer}><Text>Requesting camera permission...</Text></View>;
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Requesting camera permission...</Text>
+      </View>
+    );
   }
   
   if (hasPermission === false) {
@@ -101,10 +101,8 @@ const ScanFaceScreen = () => {
 
       <View style={styles.content}>
         {!photo ? (
-          // Camera view
           <>
             <View style={styles.cameraContainer}>
-              {/* @ts-ignore */}
               <Camera
                 ref={cameraRef}
                 style={styles.camera}
@@ -135,7 +133,6 @@ const ScanFaceScreen = () => {
             </View>
           </>
         ) : (
-          // Photo review and analysis view
           <>
             <View style={styles.photoContainer}>
               <Image source={{ uri: photo }} style={styles.photo} />
@@ -149,7 +146,6 @@ const ScanFaceScreen = () => {
             </View>
 
             {resultsReady ? (
-              // Results view
               <View style={styles.resultsContainer}>
                 <Text style={styles.resultsTitle}>Skin Analysis Results</Text>
                 
@@ -190,7 +186,6 @@ const ScanFaceScreen = () => {
                 </TouchableOpacity>
               </View>
             ) : (
-              // Photo review controls
               <View style={styles.photoControls}>
                 <Button 
                   mode="outlined" 
