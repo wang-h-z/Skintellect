@@ -1,33 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, CameraType } from 'expo-camera'; // Import directly
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'; // Updated import
 
 const ScanFaceScreen = () => {
-  console.log('Camera =>', Camera);
   const navigation = useNavigation();
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [cameraType, setCameraType] = useState(CameraType.front);
+  const [permission, requestPermission] = useCameraPermissions(); // Updated permission hook
+  const [cameraType, setCameraType] = useState<CameraType>('front'); // Updated type annotation
   const [photo, setPhoto] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const [skinConditions, setSkinConditions] = useState<string[]>([]);
-  const cameraRef = useRef<Camera>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setHasPermission(status === 'granted');
-      } catch (err) {
-        console.error('Error requesting camera permissions:', err);
-        setHasPermission(false);
-      }
-    })();
-  }, []);
+  const cameraRef = useRef<any>(null); // Using any for now as we're accessing methods directly
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -58,16 +45,16 @@ const ScanFaceScreen = () => {
     }, 3000);
   };
 
-  // Use CameraType for flipping the camera
+  // Updated: flip camera function
   const flipCamera = () => {
     setCameraType(
-      cameraType === CameraType.back
-        ? CameraType.front
-        : CameraType.back
+      cameraType === 'back' ? 'front' : 'back'
     );
   };
 
-  if (hasPermission === null) {
+  // Handle permission states
+  if (!permission) {
+    // Camera permissions are still loading
     return (
       <View style={styles.centerContainer}>
         <Text>Requesting camera permission...</Text>
@@ -75,7 +62,8 @@ const ScanFaceScreen = () => {
     );
   }
   
-  if (hasPermission === false) {
+  if (!permission.granted) {
+    // Camera permissions not granted yet
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>No access to camera</Text>
@@ -84,8 +72,15 @@ const ScanFaceScreen = () => {
         </Text>
         <Button 
           mode="contained" 
-          onPress={() => navigation.goBack()}
+          onPress={requestPermission} // Updated to use the request function
           style={styles.button}
+        >
+          Request Permission
+        </Button>
+        <Button 
+          mode="outlined" 
+          onPress={() => navigation.goBack()}
+          style={[styles.button, { marginTop: 10 }]}
         >
           Go Back
         </Button>
@@ -103,15 +98,19 @@ const ScanFaceScreen = () => {
         {!photo ? (
           <>
             <View style={styles.cameraContainer}>
-              <Camera
+              <CameraView
                 ref={cameraRef}
                 style={styles.camera}
-                type={cameraType}
+                facing={cameraType} // Updated from 'type' to 'facing'
+                onMountError={(error) => {
+                  console.error("Camera error:", error);
+                  Alert.alert("Camera Error", "Failed to start camera. Please try again.");
+                }}
               >
                 <View style={styles.cameraOverlay}>
                   <View style={styles.faceGuide} />
                 </View>
-              </Camera>
+              </CameraView>
             </View>
 
             <View style={styles.instructionsContainer}>
