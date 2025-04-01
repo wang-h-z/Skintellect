@@ -6,8 +6,9 @@ const MainAppScreen = () => {
   const navigation = useNavigation();
 
   useEffect(() => {
-    // Redirect to the tabs navigation
-    navigation.reset({
+    // Redirect to the tabs navigation using any type to bypass TypeScript error
+    // This is a workaround when you don't have complete navigation type definitions
+    (navigation as any).reset({
       index: 0,
       routes: [{ name: 'MainTabs' }],
     });
