@@ -12,12 +12,53 @@ const LoginScreen = () => {
   const [secureTextEntry, setSecureTextEntry] = useState(true);
 
   const handleLogin = async () => {
+    console.log("Login attempt started");
+    
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-    } else {
-      navigation.navigate<'Onboarding'>('Onboarding');
+    try {
+      console.log("Calling supabase.auth.signInWithPassword...");
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      console.log("Sign in response received");
+      
+      if (error) {
+        console.error("Login error:", error.message);
+        setError(error.message);
+      } else {
+        console.log("Login successful!");
+        
+        // Check if user has onboarded
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('has_onboarded')
+            .eq('id', data.user.id)
+            .single();
+          
+          console.log("Profile data:", profileData);
+          
+          if (profileData && profileData.has_onboarded) {
+            // User has onboarded, go to main app
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainTabs' }],
+            });
+          } else {
+            // User needs onboarding, go to first onboarding screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'NameScreen' }],
+            });
+          }
+        } catch (profileError) {
+          console.error("Error checking profile:", profileError);
+          // Default to onboarding if we can't check
+          navigation.navigate('NameScreen');
+        }
+      }
+    } catch (e) {
+      console.error("Exception during login:", e);
+      setError("An unexpected error occurred");
     }
   };
 
@@ -26,13 +67,45 @@ const LoginScreen = () => {
       <Image source={require('../assets/skincare.png')} style={styles.image} />
       <Text style={styles.title}>Welcome to Skintellect</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput 
+        placeholder="Email" 
+        value={email} 
+        onChangeText={(text) => {setEmail(text);}} 
+        style={styles.input} 
+        autoCapitalize="none" 
+        keyboardType="email-address" 
+      />
       <View style={styles.passwordContainer}>
-        <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry={secureTextEntry} style={styles.passwordInput} autoCapitalize="none" />
-        <IconButton icon={secureTextEntry ? 'eye-off' : 'eye'} onPress={() => setSecureTextEntry(!secureTextEntry)} style={styles.icon} />
+        <TextInput 
+          placeholder="Password" 
+          value={password} 
+          onChangeText={(text) => {setPassword(text)}} 
+          secureTextEntry={secureTextEntry} 
+          style={styles.passwordInput} 
+          autoCapitalize="none" 
+        />
+        <IconButton 
+          icon={secureTextEntry ? 'eye-off' : 'eye'} 
+          onPress={() => setSecureTextEntry(!secureTextEntry)} 
+          style={styles.icon} 
+        />
       </View>
-      <Button mode="contained" onPress={handleLogin} style={styles.button}>Login</Button>
-      <TouchableOpacity onPress={() => navigation.navigate<'SignUp'>('SignUp')}>
+      <Button 
+        mode="contained" 
+        onPress={() => {
+          console.log("Login button pressed");
+          handleLogin();
+        }} 
+        style={styles.button}
+      >
+        Login
+      </Button>
+      <TouchableOpacity 
+        onPress={() => {
+          console.log("Navigate to SignUp");
+          navigation.navigate('SignUp');
+        }}
+      >
         <Text style={styles.link}>Don't have an account? Sign up</Text>
       </TouchableOpacity>
     </View>
