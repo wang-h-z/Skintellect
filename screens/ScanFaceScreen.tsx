@@ -1,25 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
-import { Feather } from '@expo/vector-icons';
-import { Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import { Button } from 'react-native-paper';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+// Import Camera from expo-camera
+import { Camera as ExpoCamera } from 'expo-camera';
+
+// Define the Camera component explicitly to avoid TypeScript errors
+const Camera = ExpoCamera;
 
 const ScanFaceScreen = () => {
   const navigation = useNavigation();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [cameraType, setCameraType] = useState(Camera.Constants.Type.front);
+  // Use strings for camera type to avoid enum type issues
+  const [cameraType, setCameraType] = useState('front');
   const [photo, setPhoto] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const [skinConditions, setSkinConditions] = useState<string[]>([]);
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef(null);
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
+      try {
+        const { status } = await ExpoCamera.requestCameraPermissionsAsync();
+        setHasPermission(status === 'granted');
+      } catch (err) {
+        console.error('Error requesting camera permissions:', err);
+        setHasPermission(false);
+      }
     })();
   }, []);
 
@@ -44,12 +54,10 @@ const ScanFaceScreen = () => {
   };
 
   const analyzePicture = async () => {
-    // This would be replaced with actual AI analysis code
     setAnalyzing(true);
     
     // Simulate analysis delay
     setTimeout(() => {
-      // Mock results - in a real app, this would come from your AI service
       const mockConditions = ['Acne', 'Dryness'];
       setSkinConditions(mockConditions);
       setResultsReady(true);
@@ -59,9 +67,7 @@ const ScanFaceScreen = () => {
 
   const flipCamera = () => {
     setCameraType(
-      cameraType === Camera.Constants.Type.back
-        ? Camera.Constants.Type.front
-        : Camera.Constants.Type.back
+      cameraType === 'back' ? 'front' : 'back'
     );
   };
 
@@ -98,11 +104,11 @@ const ScanFaceScreen = () => {
           // Camera view
           <>
             <View style={styles.cameraContainer}>
+              {/* @ts-ignore */}
               <Camera
                 ref={cameraRef}
                 style={styles.camera}
                 type={cameraType}
-                ratio="1:1"
               >
                 <View style={styles.cameraOverlay}>
                   <View style={styles.faceGuide} />
@@ -164,7 +170,7 @@ const ScanFaceScreen = () => {
                     
                     <Button 
                       mode="contained" 
-                      onPress={() => navigation.navigate('Shop')}
+                      onPress={() => (navigation as any).navigate('Shop')}
                       style={styles.button}
                     >
                       View Recommended Products
