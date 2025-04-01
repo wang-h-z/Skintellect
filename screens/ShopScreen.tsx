@@ -172,7 +172,10 @@ const ShopScreen = () => {
         if (userProfile) {
           // Filter by user's skin type and conditions
           const userSkinType = userProfile.skin_type;
-          const userSkinConditions = userProfile.skin_conditions || [];
+          const userSkinConditions = Array.isArray(userProfile.skin_conditions)
+                                      ? userProfile.skin_conditions
+                                      : [];
+
           
           result = result.filter(product => 
             (product.skinType.includes(userSkinType) || product.skinType.includes('all')) &&

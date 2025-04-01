@@ -30,35 +30,40 @@ const ProfileScreen = () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('User from auth:', user);
       
       if (!user) {
         throw new Error('Not authenticated');
       }
-
+  
       // Get user profile
       const { data, error: supabaseError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
-
+  
       if (supabaseError) {
         throw supabaseError;
       }
-
-      // Add email from auth
+  
+      // Set default for skin_conditions if it's null/undefined
       setProfile({
         ...data,
         email: user.email || '',
+        skin_conditions: data.skin_conditions || [],
       });
+      
+      // Log data instead of profile state
+      console.log("Fetched profile data:", data);
     } catch (err: any) {
       console.error('Error fetching profile:', err);
       setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
-  };
-
+  };  
+  
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     (navigation as any).reset({
