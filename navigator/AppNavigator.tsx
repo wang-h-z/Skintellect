@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
 import { Session } from '@supabase/supabase-js';
@@ -140,11 +140,21 @@ const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load persisted session and onboarding status
   useEffect(() => {
     const loadPersistedState = async () => {
       try {
+        // Set a timeout to prevent indefinite loading
+        const timeoutId = setTimeout(() => {
+          if (loading) {
+            console.log("Loading timeout reached");
+            setLoading(false);
+            setError("Loading timed out. Please restart the app.");
+          }
+        }, 10000);
+
         // Get persisted session and onboarded status from AsyncStorage
         const [sessionData, onboardedData] = await Promise.all([
           AsyncStorage.getItem(SESSION_KEY),
@@ -161,6 +171,7 @@ const AppNavigator = () => {
             if (onboardedData === 'true') {
               setHasOnboarded(true);
               setLoading(false);
+              clearTimeout(timeoutId);
               return; // Skip the API call if we have cached data
             } else {
               await checkOnboardingStatus(parsedSession.user.id);
@@ -179,9 +190,12 @@ const AppNavigator = () => {
         } else {
           setLoading(false);
         }
+        
+        clearTimeout(timeoutId);
       } catch (error) {
         console.error('Error loading persisted state:', error);
         setLoading(false);
+        setError("Failed to load app state. Please try again.");
       }
     };
 
@@ -196,7 +210,11 @@ const AppNavigator = () => {
         if (supabaseSession) {
           // Cache the new session
           await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
-          await checkOnboardingStatus(supabaseSession.user.id);
+          
+          // For sign-ins and token refreshes, we want to recheck onboarding status
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+            await checkOnboardingStatus(supabaseSession.user.id);
+          }
         } else {
           // Clear cached data on signout
           if (event === 'SIGNED_OUT') {
@@ -217,25 +235,47 @@ const AppNavigator = () => {
   const checkOnboardingStatus = async (userId: string) => {
     try {
       console.log("Checking onboarding status for user:", userId);
+      
+      // First check if a profile exists
       const { data, error } = await supabase
         .from('profiles')
         .select('has_onboarded')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no records exist
         
-      if (error) {
+      if (error && error.code !== 'PGRST116') { 
+        // Handle errors other than "no rows returned"
         console.error('Error checking onboarding status:', error);
         setHasOnboarded(false);
-      } else {
-        const onboarded = data?.has_onboarded || false;
-        setHasOnboarded(onboarded);
+        await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
+      } else if (!data) {
+        // No profile exists yet - create one with default values
+        console.log("No profile found for user, creating a new one");
         
-        // Cache the onboarding status
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            has_onboarded: false,
+            // Add other default fields as needed
+          });
+          
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        }
+        
+        setHasOnboarded(false);
+        await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
+      } else {
+        // Profile exists, use its onboarding status
+        const onboarded = data.has_onboarded || false;
+        setHasOnboarded(onboarded);
         await AsyncStorage.setItem(ONBOARDED_KEY, onboarded ? 'true' : 'false');
       }
     } catch (error) {
-      console.error('Error checking onboarding status:', error);
+      console.error('Error in checkOnboardingStatus:', error);
       setHasOnboarded(false);
+      await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
     } finally {
       setLoading(false);
     }
@@ -243,8 +283,21 @@ const AppNavigator = () => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF5F5' }}>
         <ActivityIndicator size="large" color="#D43F57" />
+        <Text style={{ marginTop: 20, color: '#666' }}>Loading your profile...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF5F5', padding: 20 }}>
+        <Feather name="alert-circle" size={50} color="#D43F57" />
+        <Text style={{ marginTop: 20, fontSize: 18, color: '#333', textAlign: 'center' }}>{error}</Text>
+        <Text style={{ marginTop: 10, color: '#666', textAlign: 'center' }}>
+          Please check your connection and restart the app.
+        </Text>
       </View>
     );
   }
