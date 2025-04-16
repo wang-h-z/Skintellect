@@ -1,20 +1,20 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'; // Updated import
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 
 const ScanFaceScreen = () => {
   const navigation = useNavigation();
-  const [permission, requestPermission] = useCameraPermissions(); // Updated permission hook
-  const [cameraType, setCameraType] = useState<CameraType>('front'); // Updated type annotation
+  const [permission, requestPermission] = useCameraPermissions();
+  const [cameraType, setCameraType] = useState<CameraType>('front');
   const [photo, setPhoto] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
   const [skinConditions, setSkinConditions] = useState<string[]>([]);
-  const cameraRef = useRef<any>(null); // Using any for now as we're accessing methods directly
+  const cameraRef = useRef<any>(null);
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -38,14 +38,14 @@ const ScanFaceScreen = () => {
     setAnalyzing(true);
     // Simulate analysis delay
     setTimeout(() => {
-      const mockConditions = ['Acne', 'Dryness'];
+      // For testing, add more mock conditions to demonstrate scrolling
+      const mockConditions = ['Acne', 'Dryness', 'Redness', 'Uneven tone', 'Fine lines', 'Hyperpigmentation'];
       setSkinConditions(mockConditions);
       setResultsReady(true);
       setAnalyzing(false);
     }, 3000);
   };
 
-  // Updated: flip camera function
   const flipCamera = () => {
     setCameraType(
       cameraType === 'back' ? 'front' : 'back'
@@ -54,7 +54,6 @@ const ScanFaceScreen = () => {
 
   // Handle permission states
   if (!permission) {
-    // Camera permissions are still loading
     return (
       <View style={styles.centerContainer}>
         <Text>Requesting camera permission...</Text>
@@ -63,7 +62,6 @@ const ScanFaceScreen = () => {
   }
   
   if (!permission.granted) {
-    // Camera permissions not granted yet
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>No access to camera</Text>
@@ -72,7 +70,7 @@ const ScanFaceScreen = () => {
         </Text>
         <Button 
           mode="contained" 
-          onPress={requestPermission} // Updated to use the request function
+          onPress={requestPermission}
           style={styles.button}
         >
           Request Permission
@@ -101,7 +99,7 @@ const ScanFaceScreen = () => {
               <CameraView
                 ref={cameraRef}
                 style={styles.camera}
-                facing={cameraType} // Updated from 'type' to 'facing'
+                facing={cameraType}
                 onMountError={(error) => {
                   console.error("Camera error:", error);
                   Alert.alert("Camera Error", "Failed to start camera. Please try again.");
@@ -145,45 +143,47 @@ const ScanFaceScreen = () => {
             </View>
 
             {resultsReady ? (
-              <View style={styles.resultsContainer}>
-                <Text style={styles.resultsTitle}>Skin Analysis Results</Text>
-                
-                {skinConditions.length > 0 ? (
-                  <>
+              <ScrollView style={styles.scrollableResults} contentContainerStyle={styles.resultsScrollContent}>
+                <View style={styles.resultsContainer}>
+                  <Text style={styles.resultsTitle}>Skin Analysis Results</Text>
+                  
+                  {skinConditions.length > 0 ? (
+                    <>
+                      <Text style={styles.resultsSubtitle}>
+                        We've detected the following conditions:
+                      </Text>
+                      
+                      <View style={styles.conditionsList}>
+                        {skinConditions.map((condition, index) => (
+                          <View key={index} style={styles.conditionItem}>
+                            <Feather name="check-circle" size={20} color="#D43F57" />
+                            <Text style={styles.conditionText}>{condition}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      
+                      <Button 
+                        mode="contained" 
+                        onPress={() => (navigation as any).navigate('Shop')}
+                        style={styles.button}
+                      >
+                        View Recommended Products
+                      </Button>
+                    </>
+                  ) : (
                     <Text style={styles.resultsSubtitle}>
-                      We've detected the following conditions:
+                      No skin concerns detected! Your skin looks healthy.
                     </Text>
-                    
-                    <View style={styles.conditionsList}>
-                      {skinConditions.map((condition, index) => (
-                        <View key={index} style={styles.conditionItem}>
-                          <Feather name="check-circle" size={20} color="#D43F57" />
-                          <Text style={styles.conditionText}>{condition}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    
-                    <Button 
-                      mode="contained" 
-                      onPress={() => (navigation as any).navigate('Shop')}
-                      style={styles.button}
-                    >
-                      View Recommended Products
-                    </Button>
-                  </>
-                ) : (
-                  <Text style={styles.resultsSubtitle}>
-                    No skin concerns detected! Your skin looks healthy.
-                  </Text>
-                )}
-                
-                <TouchableOpacity 
-                  style={styles.retakeButton} 
-                  onPress={retakePicture}
-                >
-                  <Text style={styles.retakeButtonText}>Take Another Photo</Text>
-                </TouchableOpacity>
-              </View>
+                  )}
+                  
+                  <TouchableOpacity 
+                    style={styles.retakeButton} 
+                    onPress={retakePicture}
+                  >
+                    <Text style={styles.retakeButtonText}>Take Another Photo</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             ) : (
               <View style={styles.photoControls}>
                 <Button 
@@ -340,6 +340,12 @@ const styles = StyleSheet.create({
   },
   analyzeButton: {
     backgroundColor: '#D43F57',
+  },
+  scrollableResults: {
+    flex: 1,
+  },
+  resultsScrollContent: {
+    flexGrow: 1,
   },
   resultsContainer: {
     padding: 20,
