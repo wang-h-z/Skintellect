@@ -224,28 +224,6 @@ const ShopScreen = () => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
   };
 
-  const renderProductItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity style={styles.productCard}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
-      <View style={styles.productInfo}>
-        <Text style={styles.brand}>{item.brand}</Text>
-        <Text style={styles.productName}>{item.name}</Text>
-        <View style={styles.ratingContainer}>
-          <Feather name="star" size={14} color="#FFD700" />
-          <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
-        </View>
-        <Text style={styles.price}>${item.price.toFixed(2)}</Text>
-        <Button 
-          mode="contained" 
-          style={styles.addButton}
-          onPress={() => addToCart(item.id)}
-        >
-          Add to Cart
-        </Button>
-      </View>
-    </TouchableOpacity>
-  );
-
   const renderCategoryButton = (title: string, category: string) => (
     <TouchableOpacity 
       style={[
@@ -262,6 +240,35 @@ const ShopScreen = () => {
       </Text>
     </TouchableOpacity>
   );
+
+  // In your renderProductItem function, let's update the structure slightly:
+const renderProductItem = ({ item }: { item: Product }) => (
+  <TouchableOpacity 
+    style={styles.productCard}
+    activeOpacity={0.8} // Makes the touch effect more subtle
+  >
+    <Image source={{ uri: item.image }} style={styles.productImage} />
+    <View style={styles.productInfo}>
+      <Text style={styles.brand}>{item.brand}</Text>
+      <Text style={styles.productName}>{item.name}</Text>
+      
+      <View style={styles.priceRatingRow}>
+        <Text style={styles.price}>${item.price.toFixed(2)}</Text>
+        <View style={styles.ratingContainer}>
+          <Feather name="star" size={14} color="#FFD700" />
+          <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
+        </View>
+      </View>
+      
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => addToCart(item.id)}
+      >
+        <Text style={styles.addButtonText}>Add to Cart</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+);
 
   if (loading) {
     return (
@@ -410,22 +417,10 @@ const styles = StyleSheet.create({
   productList: {
     padding: 10,
   },
-  productCard: {
-    flex: 1,
-    margin: 5,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-  },
   productImage: {
     width: '100%',
     height: 150,
     resizeMode: 'cover',
-  },
-  productInfo: {
-    padding: 10,
   },
   brand: {
     fontSize: 12,
@@ -449,19 +444,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 3,
   },
-  price: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#D43F57',
-    marginBottom: 10,
-  },
-  addButton: {
-    backgroundColor: '#D43F57',
-    borderRadius: 5,
-    marginTop: 'auto',
-    height: 30,
-    justifyContent: 'center',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -480,6 +462,47 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
+  // Updated styles for the product card and button
+priceRatingRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 10,
+  marginTop: 5,
+},
+price: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: '#D43F57',
+},
+addButton: {
+  backgroundColor: '#D43F57',
+  borderRadius: 8,
+  paddingVertical: 8,
+  alignItems: 'center',
+  width: '100%',
+},
+addButtonText: {
+  color: 'white',
+  fontWeight: 'bold',
+  fontSize: 14,
+},
+productCard: {
+  flex: 1,
+  margin: 5,
+  backgroundColor: 'white',
+  borderRadius: 10,
+  overflow: 'hidden',
+  borderWidth: 1,
+  borderColor: '#FFCDD2',
+  // Adding this ensures the card has enough space
+  minHeight: 290,
+},
+productInfo: {
+  padding: 10,
+  flex: 1,
+  justifyContent: 'space-between',
+},
 });
 
 export default ShopScreen; 
