@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { supabase } from '../config/supabaseClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define types for skin conditions and skin types
 export type SkinType = 'oily' | 'dry' | 'combination' | 'normal' | 'sensitive';
@@ -89,6 +90,8 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
           skin_type: userProfile.skinType,
           skin_conditions: userProfile.skinConditions,
           has_onboarded: true,
+        }, {
+          onConflict: 'id'
         });
         
       if (updateError) {
@@ -96,10 +99,15 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
       }
       
       // Update local state
-      setUserProfile((prev) => ({ ...prev, hasOnboarded: true }));
+      setUserProfile((prev) => ({ ...prev, id: user.id, hasOnboarded: true }));
+      
+      // Update AsyncStorage immediately
+      await AsyncStorage.setItem('skintellect_onboarded', 'true');
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to complete onboarding');
       console.error('Onboarding error:', err);
+      throw err; // Re-throw so the confirmation screen knows there was an error
     } finally {
       setIsLoading(false);
     }

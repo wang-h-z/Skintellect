@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, View, Text, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
 import { Session } from '@supabase/supabase-js';
@@ -158,42 +158,55 @@ const AppNavigator = () => {
           }
         }, 20000);
 
+        console.log("Loading persisted state...");
+
         // Get persisted session and onboarded status from AsyncStorage
         const [sessionData, onboardedData] = await Promise.all([
           AsyncStorage.getItem(SESSION_KEY),
           AsyncStorage.getItem(ONBOARDED_KEY)
         ]);
 
+        console.log("Persisted data loaded:", { 
+          hasSessionData: !!sessionData, 
+          onboardedData 
+        });
+
         // If we have a persisted session, use it
         if (sessionData) {
           const parsedSession = JSON.parse(sessionData);
           setSession(parsedSession);
           
-          // If session is still valid, check onboarded status from Storage or API
-          if (parsedSession && parsedSession.user && parsedSession.expires_at > Date.now() / 1000) {
+          // If session is still valid, check onboarded status from Storage
+          if (parsedSession?.user && parsedSession.expires_at > Date.now() / 1000) {
             if (onboardedData === 'true') {
+              console.log("Setting onboarded from AsyncStorage");
               setHasOnboarded(true);
-              setLoading(false);
-              clearTimeout(timeoutId);
-              return; // Skip the API call if we have cached data
             } else {
+              console.log("Checking onboarding status from API");
               await checkOnboardingStatus(parsedSession.user.id);
             }
           }
+        } else {
+          console.log("No persisted session, checking current session");
         }
 
         // Get current session from Supabase (handles expired sessions)
         const { data: { session: supabaseSession } } = await supabase.auth.getSession();
+        console.log("Current session:", { hasSession: !!supabaseSession });
+        
         setSession(supabaseSession);
         
         if (supabaseSession) {
           // Cache the session
           await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
-          await checkOnboardingStatus(supabaseSession.user.id);
-        } else {
-          setLoading(false);
+          
+          // Check onboarding status if we haven't set it from AsyncStorage already
+          if (!hasOnboarded) {
+            await checkOnboardingStatus(supabaseSession.user.id);
+          }
         }
         
+        setLoading(false);
         clearTimeout(timeoutId);
       } catch (error) {
         console.error('Error loading persisted state:', error);
@@ -216,7 +229,16 @@ const AppNavigator = () => {
           
           // For sign-ins and token refreshes, we want to recheck onboarding status
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            await checkOnboardingStatus(supabaseSession.user.id);
+            const onboardedData = await AsyncStorage.getItem(ONBOARDED_KEY);
+            
+            if (onboardedData === 'true') {
+              console.log("Setting onboarded to true from AsyncStorage after", event);
+              setHasOnboarded(true);
+              setLoading(false);
+            } else {
+              console.log("Checking onboarding status from API after", event);
+              await checkOnboardingStatus(supabaseSession.user.id);
+            }
           }
         } else {
           // Clear cached data on signout
@@ -239,13 +261,24 @@ const AppNavigator = () => {
     try {
       console.log("Checking onboarding status for user:", userId);
       
-      // First check if a profile exists
+      // First check if the status is already in AsyncStorage
+      const storedOnboardingStatus = await AsyncStorage.getItem(ONBOARDED_KEY);
+      if (storedOnboardingStatus === 'true') {
+        console.log("User has already onboarded according to AsyncStorage");
+        setHasOnboarded(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Check if a profile exists in Supabase
       const { data, error } = await supabase
         .from('profiles')
         .select('has_onboarded')
         .eq('id', userId)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no records exist
+        .maybeSingle();
         
+      console.log("Profile check result:", { data, error });
+      
       if (error && error.code !== 'PGRST116') { 
         // Handle errors other than "no rows returned"
         console.error('Error checking onboarding status:', error);
@@ -260,7 +293,6 @@ const AppNavigator = () => {
           .insert({
             id: userId,
             has_onboarded: false,
-            // Add other default fields as needed
           });
           
         if (insertError) {
@@ -272,6 +304,7 @@ const AppNavigator = () => {
       } else {
         // Profile exists, use its onboarding status
         const onboarded = data.has_onboarded || false;
+        console.log("Profile exists, has_onboarded =", onboarded);
         setHasOnboarded(onboarded);
         await AsyncStorage.setItem(ONBOARDED_KEY, onboarded ? 'true' : 'false');
       }

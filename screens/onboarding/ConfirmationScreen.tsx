@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import OnboardingLayout from './OnboardingLayout';
 import { useOnboarding, SkinType, SkinCondition, Gender } from '../../context/OnboardingContext';
 import { supabase } from '../../config/supabaseClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ConfirmationScreen = () => {
   const navigation = useNavigation();
@@ -12,21 +13,40 @@ const ConfirmationScreen = () => {
 
   const handleFinish = async () => {
     try {
-      // Complete the onboarding process which updates the database
+      // First complete the onboarding process which updates the database
       await completeOnboarding();
       setProcessingComplete(true);
       
       if (!error) {
-        // Force the session to refresh - this is the simplest approach
-        // This will trigger the auth state change in AppNavigator
-        // which will then check onboarding status and show MainTabs
+        // Store onboarding status in AsyncStorage immediately
+        await AsyncStorage.setItem('skintellect_onboarded', 'true');
+        
+        // Force the session to refresh
         const { error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError) {
           console.error("Error refreshing session:", refreshError);
+          Alert.alert(
+            "Error", 
+            "There was an issue completing your setup. Please try restarting the app.",
+            [{ text: "OK" }]
+          );
+          return;
         }
+        
+        // Reset navigation to MainTabs directly
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
       }
     } catch (err) {
       console.error("Error in handleFinish:", err);
+      Alert.alert(
+        "Error", 
+        "There was an issue completing your setup. Please try again.",
+        [{ text: "OK" }]
+      );
+      setProcessingComplete(false);
     }
   };
 
@@ -78,6 +98,7 @@ const ConfirmationScreen = () => {
       nextDisabled={isLoading || processingComplete}
       onNext={handleFinish}
       onBack={handleBack}
+      nextButtonText="Finish"
     >
       <ScrollView style={styles.contentContainer}>
         <Text style={styles.subtitle}>
