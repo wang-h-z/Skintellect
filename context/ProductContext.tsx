@@ -1,10 +1,11 @@
 // context/ProductContext.tsx
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, SkinCondition, ScanResult } from '../types/product';
 import { products } from '../data/productData';
 import { useOnboarding } from './OnboardingContext';
 import { supabase } from '../config/supabaseClient';
 
+// Define your context types
 interface ProductContextType {
   products: Product[];
   scanResults: ScanResult | null;
@@ -13,6 +14,7 @@ interface ProductContextType {
   cartItems: {id: string, quantity: number}[];
   addToCart: (productId: string) => void;
   removeFromCart: (productId: string) => void;
+  clearCart: () => void;
   getTotalCartItems: () => number;
   saveScanResults: () => Promise<void>;
   getPreviousScanResults: () => Promise<ScanResult[]>;
@@ -21,12 +23,137 @@ interface ProductContextType {
 // Create the context with undefined as the default value
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
-// Provider component without using React.FC type
+// Provider component
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [productData, setProductData] = useState<Product[]>(products);
   const [scanResults, setScanResults] = useState<ScanResult | null>(null);
   const [cartItems, setCartItems] = useState<{id: string, quantity: number}[]>([]);
   const { userProfile } = useOnboarding();
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Load data from Supabase when component mounts
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          await Promise.all([
+            fetchCartItems(user.id),
+            fetchLatestScanResult(user.id)
+          ]);
+        }
+        
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        setIsInitialized(true);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Fetch cart items from Supabase
+  const fetchCartItems = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select('*')
+        .eq('user_id', userId);
+        
+      if (error) {
+        console.error('Error fetching cart items:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        // Transform data to match our cart item structure
+        const fetchedItems = data.map(item => ({
+          id: item.product_id,
+          quantity: item.quantity
+        }));
+        
+        setCartItems(fetchedItems);
+      }
+    } catch (error) {
+      console.error('Error in fetchCartItems:', error);
+    }
+  };
+
+  // Fetch the latest scan result from Supabase
+  const fetchLatestScanResult = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('scan_results')
+        .select('*')
+        .eq('user_id', userId)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+        
+      if (error) {
+        console.error('Error fetching scan results:', error);
+        return;
+      }
+      
+      if (data) {
+        // Transform to match our scan result structure
+        setScanResults({
+          skinConditions: data.skin_conditions,
+          timestamp: new Date(data.timestamp)
+        });
+      }
+    } catch (error) {
+      console.error('Error in fetchLatestScanResult:', error);
+    }
+  };
+
+  // Save cart items to Supabase whenever they change
+  useEffect(() => {
+    if (!isInitialized) return; // Skip during initial load
+    
+    const saveCartItems = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) return;
+        
+        // First delete existing cart items for this user
+        const { error: deleteError } = await supabase
+          .from('cart_items')
+          .delete()
+          .eq('user_id', user.id);
+          
+        if (deleteError) {
+          console.error('Error deleting existing cart items:', deleteError);
+          return;
+        }
+        
+        // Then insert the new cart items
+        if (cartItems.length > 0) {
+          const cartItemsForDB = cartItems.map(item => ({
+            user_id: user.id,
+            product_id: item.id,
+            quantity: item.quantity,
+            created_at: new Date().toISOString()
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('cart_items')
+            .insert(cartItemsForDB);
+            
+          if (insertError) {
+            console.error('Error saving cart items:', insertError);
+          }
+        }
+      } catch (error) {
+        console.error('Error in saveCartItems:', error);
+      }
+    };
+
+    saveCartItems();
+  }, [cartItems, isInitialized]);
 
   // Add to cart
   const addToCart = (productId: string) => {
@@ -55,6 +182,30 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     } else {
       // Remove item from cart
       setCartItems(cartItems.filter(item => item.id !== productId));
+    }
+  };
+
+  // Clear cart
+  const clearCart = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Delete all cart items for this user
+        const { error } = await supabase
+          .from('cart_items')
+          .delete()
+          .eq('user_id', user.id);
+          
+        if (error) {
+          console.error('Error clearing cart in database:', error);
+        }
+      }
+      
+      // Clear local state
+      setCartItems([]);
+    } catch (error) {
+      console.error('Error clearing cart:', error);
     }
   };
 
@@ -157,7 +308,6 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Important: Make sure we return the JSX element
   return (
     <ProductContext.Provider value={{
       products: productData,
@@ -167,6 +317,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       cartItems,
       addToCart,
       removeFromCart,
+      clearCart,
       getTotalCartItems,
       saveScanResults,
       getPreviousScanResults
