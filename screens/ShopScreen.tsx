@@ -19,6 +19,7 @@ import { Product, SkinCondition } from '../types/product';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { getRecommendedProducts } from '../utils/IngredientAnalyzer';
 import CartButton from '../components/CartButton';
+import CartModal from '../components/CartModal';
 
 const ShopScreen = () => {
   const { products, scanResults, addToCart, getTotalCartItems } = useProducts();
@@ -29,6 +30,7 @@ const ShopScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [cartModalVisible, setCartModalVisible] = useState(false);
   
   // New state for recommended products based on skin scan
   const [recommendedProducts, setRecommendedProducts] = useState<Array<Product & { suitability: any }>>([]);
@@ -222,9 +224,20 @@ const ShopScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Shop</Text>
-        <CartButton />
+        <TouchableOpacity 
+          style={styles.cartIconContainer}
+          onPress={() => setCartModalVisible(true)}
+        >
+          <Feather name="shopping-cart" size={24} color="#D43F57" />
+          {getTotalCartItems() > 0 && (
+            <Badge style={styles.cartBadge}>
+              {getTotalCartItems()}
+            </Badge>
+          )}
+        </TouchableOpacity>
       </View>
       
       {/* Show scan result banner if there's a new scan */}
@@ -313,6 +326,11 @@ const ShopScreen = () => {
         product={selectedProduct}
         onClose={closeModal}
         onAddToCart={addToCart}
+      />
+
+      <CartModal
+        visible={cartModalVisible}
+        onClose={() => setCartModalVisible(false)}
       />
     </SafeAreaView>
   );
