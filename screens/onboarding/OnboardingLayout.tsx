@@ -1,5 +1,17 @@
-import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'react-native';
+import React, { ReactNode, useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  SafeAreaView, 
+  TouchableOpacity, 
+  Image, 
+  Keyboard, 
+  Animated, 
+  Platform, 
+  Dimensions,
+  KeyboardAvoidingView
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 interface OnboardingLayoutProps {
@@ -11,6 +23,7 @@ interface OnboardingLayoutProps {
   onNext: () => void;
   onBack?: () => void;
   hideBackButton?: boolean;
+  nextButtonText?: string;
 }
 
 const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
@@ -22,59 +35,131 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   onNext,
   onBack,
   hideBackButton = false,
+  nextButtonText,
 }) => {
   const navigation = useNavigation();
+  const [keyboardHeight] = useState(new Animated.Value(0));
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const screenHeight = Dimensions.get('window').height;
+
+  useEffect(() => {
+    // Add keyboard listeners
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      e => {
+        setKeyboardVisible(true);
+        Animated.timing(keyboardHeight, {
+          toValue: e.endCoordinates.height,
+          duration: 250,
+          useNativeDriver: false
+        }).start();
+      }
+    );
+    
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        Animated.timing(keyboardHeight, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: false
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
+
+  // Adaptive UI based on keyboard visibility
+  const logoSize = keyboardVisible ? 70 : 100;
+  const titleMarginTop = keyboardVisible ? 5 : 10;
+  const headerPadding = keyboardVisible ? 10 : 20;
+  const headerMarginTop = keyboardVisible ? 5 : 20;
+  const progressMarginVertical = keyboardVisible ? 10 : 20;
+
+  // Calculate the content shift when keyboard appears
+  const contentShift = keyboardHeight.interpolate({
+    inputRange: [0, screenHeight / 2],
+    outputRange: [0, -80], // Shift up by amount that works for most screens
+    extrapolate: 'clamp'
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Image 
-          source={require('../../assets/skincare.png')} 
-          style={styles.logo} 
-          resizeMode="contain" 
-        />
-        <Text style={styles.title}>{title}</Text>
-      </View>
-
-      <View style={styles.progressContainer}>
-        {Array.from({ length: totalSteps }).map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.progressDot,
-              index < step ? styles.progressDotActive : {},
-            ]}
-          />
-        ))}
-      </View>
-
-      <View style={styles.content}>{children}</View>
-
-      <View style={styles.buttonContainer}>
-        {!hideBackButton && (
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={onBack}
-          >
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <SafeAreaView style={styles.container}>
+        <Animated.View 
           style={[
-            styles.nextButton,
-            hideBackButton ? styles.fullWidthButton : {},
-            nextDisabled ? styles.disabledButton : {}
+            styles.mainContainer,
+            { transform: [{ translateY: contentShift }] }
           ]}
-          onPress={onNext}
-          disabled={nextDisabled}
         >
-          <Text style={styles.nextButtonText}>
-            {step === totalSteps ? 'Finish' : 'Next'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <View style={[
+            styles.header, 
+            { 
+              padding: headerPadding, 
+              marginTop: headerMarginTop 
+            }
+          ]}>
+            <Image 
+              source={require('../../assets/skincare.png')} 
+              style={[styles.logo, { width: logoSize, height: logoSize }]} 
+              resizeMode="contain" 
+            />
+            <Text style={[styles.title, { marginTop: titleMarginTop }]}>{title}</Text>
+          </View>
+
+          <View style={[styles.progressContainer, { marginVertical: progressMarginVertical }]}>
+            {Array.from({ length: totalSteps }).map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.progressDot,
+                  index < step ? styles.progressDotActive : {},
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.content}>{children}</View>
+
+          <View style={styles.buttonContainer}>
+            {!hideBackButton && (
+              <TouchableOpacity 
+                style={styles.backButton} 
+                onPress={onBack}
+              >
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.nextButton,
+                hideBackButton ? styles.fullWidthButton : {},
+                nextDisabled ? styles.disabledButton : {}
+              ]}
+              onPress={() => {
+                Keyboard.dismiss();
+                onNext();
+              }}
+              disabled={nextDisabled}
+            >
+              <Text style={styles.nextButtonText}>
+                {nextButtonText || (step === totalSteps ? 'Finish' : 'Next')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -82,6 +167,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF5F5',
+  },
+  mainContainer: {
+    flex: 1,
   },
   header: {
     alignItems: 'center',
