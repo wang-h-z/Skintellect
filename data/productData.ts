@@ -1,5 +1,5 @@
 // data/productData.ts
-import { Product } from '../types/prodcut';
+import { Product } from '../types/product';
 
 export const products: Product[] = [
   {
