@@ -55,8 +55,10 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Fetch cart items from Supabase
+  // In the fetchCartItems function:
   const fetchCartItems = async (userId: string) => {
     try {
+      console.log("Fetching cart items for user:", userId);
       const { data, error } = await supabase
         .from('cart_items')
         .select('*')
@@ -67,6 +69,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      console.log("Fetched cart items data:", data);
+      
       if (data && data.length > 0) {
         // Transform data to match our cart item structure
         const fetchedItems = data.map(item => ({
@@ -74,12 +78,18 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
           quantity: item.quantity
         }));
         
+        console.log("Setting cart items to:", fetchedItems);
         setCartItems(fetchedItems);
+      } else {
+        console.log("No cart items found in database");
       }
     } catch (error) {
       console.error('Error in fetchCartItems:', error);
     }
   };
+
+// In the useEffect that saves cart items:
+console.log("Attempting to save cart items:", cartItems);
 
   // Fetch the latest scan result from Supabase
   const fetchLatestScanResult = async (userId: string) => {
