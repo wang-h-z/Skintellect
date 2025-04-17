@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
 import { SkinType, SkinCondition, Gender } from '../context/OnboardingContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useProducts } from '../context/ProductContext';
 
 interface UserProfile {
   id: string;
@@ -21,6 +22,26 @@ const ProfileScreen = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { cartItems, getPreviousScanResults } = useProducts();
+  const [scanCount, setScanCount] = useState(0);
+  const [productCount, setProductCount] = useState(0);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Get scan count from scan history
+        const scanHistory = await getPreviousScanResults();
+        setScanCount(scanHistory.length);
+        
+        // Get product count from cart items
+        setProductCount(cartItems.length);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+    
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     fetchProfile();
@@ -160,13 +181,13 @@ const ProfileScreen = () => {
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Feather name="camera" size={24} color="#D43F57" />
-              <Text style={styles.statCount}>0</Text>
+              <Text style={styles.statCount}>{scanCount}</Text>
               <Text style={styles.statLabel}>Scans</Text>
             </View>
             
             <View style={styles.statItem}>
               <Feather name="shopping-bag" size={24} color="#D43F57" />
-              <Text style={styles.statCount}>0</Text>
+              <Text style={styles.statCount}>{productCount}</Text>
               <Text style={styles.statLabel}>Products</Text>
             </View>
             
