@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
-  SafeAreaView
+  SafeAreaView,
+  Alert
 } from 'react-native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
@@ -22,7 +23,14 @@ interface CartModalProps {
 
 const CartModal: React.FC<CartModalProps> = ({ visible, onClose }) => {
   const navigation = useNavigation();
-  const { products, cartItems, addToCart, removeFromCart, getTotalCartItems } = useProducts();
+  const { products, cartItems, addToCart, removeFromCart, getTotalCartItems, refreshCartItems } = useProducts();
+
+  // Refresh cart items when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      refreshCartItems();
+    }
+  }, [visible]);
 
   // Get full product details for items in cart
   const cartProducts = cartItems.map(cartItem => {
@@ -43,10 +51,15 @@ const CartModal: React.FC<CartModalProps> = ({ visible, onClose }) => {
   const handleCheckout = () => {
     onClose(); // Close the modal
     // Navigate or perform checkout actions
+    Alert.alert(
+      "Checkout",
+      "This would proceed to checkout in a real app.",
+      [{ text: "OK" }]
+    );
   };
 
-  const renderCartItem = ({ item }: { item: Product & { quantity: number } }) => (
-    <View style={styles.cartItem}>
+  const renderCartItem = ({ item, index }: { item: Product & { quantity: number }, index: number }) => (
+    <View style={styles.cartItem} key={`cart-item-${item.id}-${index}`}>
       <Image source={{ uri: item.image }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
@@ -108,7 +121,7 @@ const CartModal: React.FC<CartModalProps> = ({ visible, onClose }) => {
               <FlatList
                 data={cartProducts}
                 renderItem={renderCartItem}
-                keyExtractor={item => item.id}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
                 style={styles.cartList}
                 contentContainerStyle={styles.cartListContent}
               />

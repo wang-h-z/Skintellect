@@ -18,6 +18,7 @@ interface ProductContextType {
   getTotalCartItems: () => number;
   saveScanResults: () => Promise<boolean>;
   getPreviousScanResults: () => Promise<ScanResult[]>;
+  refreshCartItems: () => Promise<void>; // New function to refresh cart items
 }
 
 // Create the context with undefined as the default value
@@ -81,9 +82,23 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         setCartItems(fetchedItems);
       } else {
         console.log("No cart items found in database");
+        // Clear cart items if none found in the database
+        setCartItems([]);
       }
     } catch (error) {
       console.error('Error in fetchCartItems:', error);
+    }
+  };
+
+  // Public function to refresh cart items
+  const refreshCartItems = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await fetchCartItems(user.id);
+      }
+    } catch (error) {
+      console.error('Error refreshing cart items:', error);
     }
   };
 
@@ -152,6 +167,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
             
           if (insertError) {
             console.error('Error saving cart items:', insertError);
+          } else {
+            console.log('Cart items saved successfully');
           }
         }
       } catch (error) {
@@ -165,6 +182,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   // Add to cart
   const addToCart = (productId: string) => {
     console.log("Adding to cart, product ID:", productId);
+    // First check if this exact product ID already exists in the cart
     const existingItem = cartItems.find(item => item.id === productId);
     
     if (existingItem) {
@@ -191,6 +209,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       // Remove item from cart
       setCartItems(cartItems.filter(item => item.id !== productId));
     }
+    
+    // Cart items will be saved to Supabase via the useEffect
   };
 
   // Clear cart
@@ -207,6 +227,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
           
         if (error) {
           console.error('Error clearing cart in database:', error);
+        } else {
+          console.log('Cart cleared successfully in database');
         }
       }
       
@@ -261,13 +283,17 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
 
   // Save scan results to Supabase
   const saveScanResults = async () => {
-    if (!scanResults) return false;
+    if (!scanResults) {
+      console.warn('No scan results to save');
+      return false;
+    }
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        throw new Error('User not authenticated');
+        console.warn('User not authenticated, cannot save scan');
+        return false;
       }
       
       console.log('Saving scan results to Supabase:', {
@@ -276,23 +302,24 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         timestamp: new Date().toISOString()
       });
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('scan_results')
         .insert({
           user_id: user.id,
           skin_conditions: scanResults.skinConditions,
           timestamp: new Date().toISOString()
-        });
+        })
+        .select();
         
       if (error) {
-        console.error('Error inserting scan results:', error);
-        throw error;
+        console.error('Detailed error saving scan results:', error);
+        return false;
       }
       
-      console.log('Scan results saved successfully');
+      console.log('Scan results saved successfully:', data);
       return true;
     } catch (err) {
-      console.error('Error saving scan results:', err);
+      console.error('Exception saving scan results:', err);
       return false;
     }
   };
@@ -326,28 +353,6 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Run a test to directly fetch cart items
-  useEffect(() => {
-    const testCartFetch = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log("No authenticated user");
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('user_id', user.id);
-        
-      console.log("Direct cart fetch test:", { data, error });
-    };
-
-    if (isInitialized) {
-      testCartFetch();
-    }
-  }, [isInitialized]);
-
   return (
     <ProductContext.Provider value={{
       products: productData,
@@ -360,7 +365,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       clearCart,
       getTotalCartItems,
       saveScanResults,
-      getPreviousScanResults
+      getPreviousScanResults,
+      refreshCartItems
     }}>
       {children}
     </ProductContext.Provider>

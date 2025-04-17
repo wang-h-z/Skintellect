@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../config/supabaseClient';
@@ -26,12 +26,21 @@ const ProfileScreen = () => {
   const [productCount, setProductCount] = useState(0);
   
   // Get cart items from context
-  const { cartItems, getPreviousScanResults } = useProducts();
+  const { cartItems } = useProducts();
 
+  // Fetch profile data once on component mount
   useEffect(() => {
     fetchProfile();
-    fetchStats();
   }, []);
+
+  // Refresh stats every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Profile screen in focus, refreshing stats...");
+      fetchStats();
+      return () => {};
+    }, [cartItems]) // Re-run if cartItems changes
+  );
 
   const fetchProfile = async () => {
     try {
@@ -86,12 +95,13 @@ const ProfileScreen = () => {
         if (scanError) {
           console.error('Error fetching scan results:', scanError);
         } else {
-          setScanCount(scanData ? scanData.length : 0);
           console.log(`Found ${scanData?.length || 0} scan records`);
+          setScanCount(scanData ? scanData.length : 0);
         }
         
-        // Set product count from cart items context
+        // Set product count from cart items context - will be reactive due to dependency
         setProductCount(cartItems.length);
+        console.log(`Current cart has ${cartItems.length} items`);
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -190,6 +200,10 @@ const ProfileScreen = () => {
 
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Activity</Text>
+          <TouchableOpacity onPress={fetchStats} style={styles.refreshButton}>
+            <Feather name="refresh-cw" size={16} color="#D43F57" />
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
           
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
@@ -358,6 +372,19 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     marginBottom: 25,
+    position: 'relative',
+  },
+  refreshButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  refreshText: {
+    fontSize: 14,
+    color: '#D43F57',
+    marginLeft: 5,
   },
   statsContainer: {
     flexDirection: 'row',
