@@ -1,12 +1,20 @@
-// components/CartButton.tsx
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { Badge } from 'react-native-paper';
 import { useProducts } from '../context/ProductContext';
 
-const CartButton = () => {
-  const navigation = useNavigation();
+interface CartButtonProps {
+  onPress: () => void;
+  color?: string;
+  size?: number;
+}
+
+const CartButton: React.FC<CartButtonProps> = ({ 
+  onPress, 
+  color = '#D43F57', 
+  size = 24 
+}) => {
   const { getTotalCartItems } = useProducts();
   
   const totalItems = getTotalCartItems();
@@ -14,15 +22,13 @@ const CartButton = () => {
   return (
     <TouchableOpacity 
       style={styles.container}
-      onPress={() => navigation.navigate('Cart')}
+      onPress={onPress}
     >
-      <Feather name="shopping-cart" size={24} color="#D43F57" />
+      <Feather name="shopping-cart" size={size} color={color} />
       {totalItems > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {totalItems > 9 ? '9+' : totalItems}
-          </Text>
-        </View>
+        <Badge style={styles.badge}>
+          {totalItems > 99 ? '99+' : totalItems}
+        </Badge>
       )}
     </TouchableOpacity>
   );
@@ -30,26 +36,15 @@ const CartButton = () => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 8,
+    position: 'relative',
+    padding: 5,
   },
   badge: {
     position: 'absolute',
     top: 0,
     right: 0,
     backgroundColor: '#D43F57',
-    borderRadius: 10,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-  badgeText: {
-    color: 'white',
     fontSize: 10,
-    fontWeight: 'bold',
   },
 });
 
