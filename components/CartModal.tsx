@@ -40,10 +40,9 @@ const CartModal: React.FC<CartModalProps> = ({ visible, onClose }) => {
     }, 0);
   };
 
-  const handleViewCart = () => {
+  const handleCheckout = () => {
     onClose(); // Close the modal
-    // Navigate to cart screen if you have one
-    // navigation.navigate('Cart' as never);
+    // Navigate or perform checkout actions
   };
 
   const renderCartItem = ({ item }: { item: Product & { quantity: number } }) => (
@@ -122,7 +121,7 @@ const CartModal: React.FC<CartModalProps> = ({ visible, onClose }) => {
                 
                 <Button 
                   mode="contained" 
-                  onPress={handleViewCart}
+                  onPress={handleCheckout}
                   style={styles.checkoutButton}
                 >
                   Checkout
