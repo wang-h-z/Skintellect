@@ -1,5 +1,6 @@
 // context/ProductContext.tsx
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { Product, SkinCondition, ScanResult } from '../types/product';
 import { products } from '../data/productData';
 import { useOnboarding } from './OnboardingContext';
@@ -18,8 +19,36 @@ interface ProductContextType {
   getTotalCartItems: () => number;
   saveScanResults: () => Promise<boolean>;
   getPreviousScanResults: () => Promise<ScanResult[]>;
-  refreshCartItems: () => Promise<void>; // New function to refresh cart items
+  refreshCartItems: () => Promise<void>;
+  forceSaveCart: () => Promise<void>;
 }
+
+// Utility function to deduplicate cart items
+const cleanupCartItems = (items: {id: string, quantity: number}[]) => {
+  // Create a map to deduplicate items by id
+  const itemMap = new Map<string, {id: string, quantity: number}>();
+  
+  // Process each item, combining quantities for duplicate ids
+  items.forEach(item => {
+    if (itemMap.has(item.id)) {
+      // If this id already exists, add to its quantity
+      const existingItem = itemMap.get(item.id)!;
+      itemMap.set(item.id, {
+        id: item.id,
+        quantity: existingItem.quantity + item.quantity
+      });
+    } else {
+      // Otherwise, add it to the map
+      itemMap.set(item.id, {
+        id: item.id,
+        quantity: item.quantity
+      });
+    }
+  });
+  
+  // Convert map values to array
+  return Array.from(itemMap.values());
+};
 
 // Create the context with undefined as the default value
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -69,7 +98,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      console.log("Fetched cart items data:", data);
+      console.log("Fetched cart items raw data:", data);
       
       if (data && data.length > 0) {
         // Transform data to match our cart item structure
@@ -78,11 +107,13 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
           quantity: item.quantity
         }));
         
-        console.log("Setting cart items to:", fetchedItems);
-        setCartItems(fetchedItems);
+        // Deduplicate cart items
+        const deduplicatedItems = cleanupCartItems(fetchedItems);
+        
+        console.log("Transformed and deduplicated cart items:", deduplicatedItems);
+        setCartItems(deduplicatedItems);
       } else {
-        console.log("No cart items found in database");
-        // Clear cart items if none found in the database
+        console.log("No cart items found in database, clearing cart");
         setCartItems([]);
       }
     } catch (error) {
@@ -96,6 +127,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await fetchCartItems(user.id);
+      } else {
+        console.warn('Cannot refresh cart - no authenticated user');
       }
     } catch (error) {
       console.error('Error refreshing cart items:', error);
@@ -130,74 +163,125 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Save cart items to Supabase
+  const saveCartItems = async () => {
+    try {
+      console.log("Attempting to save cart items:", cartItems);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.warn("No authenticated user found when saving cart items");
+        return;
+      }
+      
+      console.log("Saving cart for user:", user.id);
+      
+      // First delete existing cart items for this user
+      const { error: deleteError } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('user_id', user.id);
+        
+      if (deleteError) {
+        console.error('Error deleting existing cart items:', deleteError);
+        return;
+      }
+      
+      // Then insert the new cart items
+      if (cartItems.length > 0) {
+        // Deduplicate cart items before saving
+        const deduplicatedItems = cleanupCartItems(cartItems);
+        console.log(`Adding ${deduplicatedItems.length} items to cart_items table`);
+        
+        const cartItemsForDB = deduplicatedItems.map(item => ({
+          user_id: user.id,
+          product_id: item.id,
+          quantity: item.quantity,
+          created_at: new Date().toISOString()
+        }));
+        
+        const { data, error: insertError } = await supabase
+          .from('cart_items')
+          .insert(cartItemsForDB)
+          .select();
+          
+        if (insertError) {
+          console.error('Error saving cart items:', insertError);
+        } else {
+          console.log('Cart items saved successfully:', data);
+        }
+      } else {
+        console.log("No items to save to cart");
+      }
+    } catch (error) {
+      console.error('Error in saveCartItems:', error);
+    }
+  };
+
+  // Public method to force save cart
+  const forceSaveCart = async () => {
+    try {
+      console.log("Force saving cart...");
+      await saveCartItems();
+    } catch (error) {
+      console.error('Error in forceSaveCart:', error);
+    }
+  };
+
   // Save cart items to Supabase whenever they change
   useEffect(() => {
     if (!isInitialized) return; // Skip during initial load
     
-    const saveCartItems = async () => {
-      try {
-        console.log("Attempting to save cart items:", cartItems);
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) return;
-        
-        // First delete existing cart items for this user
-        const { error: deleteError } = await supabase
-          .from('cart_items')
-          .delete()
-          .eq('user_id', user.id);
-          
-        if (deleteError) {
-          console.error('Error deleting existing cart items:', deleteError);
-          return;
-        }
-        
-        // Then insert the new cart items
-        if (cartItems.length > 0) {
-          const cartItemsForDB = cartItems.map(item => ({
-            user_id: user.id,
-            product_id: item.id,
-            quantity: item.quantity,
-            created_at: new Date().toISOString()
-          }));
-          
-          const { error: insertError } = await supabase
-            .from('cart_items')
-            .insert(cartItemsForDB);
-            
-          if (insertError) {
-            console.error('Error saving cart items:', insertError);
-          } else {
-            console.log('Cart items saved successfully');
-          }
-        }
-      } catch (error) {
-        console.error('Error in saveCartItems:', error);
-      }
-    };
-
     saveCartItems();
   }, [cartItems, isInitialized]);
 
-  // Add to cart
+  // Setup auth state listener to save cart on signout
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Auth state change detected:", event);
+        if (event === 'SIGNED_OUT') {
+          // Save cart before signing out
+          console.log("Attempting to save cart before signout");
+          await forceSaveCart();
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Add to cart - with dedupe protection
   const addToCart = (productId: string) => {
     console.log("Adding to cart, product ID:", productId);
-    // First check if this exact product ID already exists in the cart
-    const existingItem = cartItems.find(item => item.id === productId);
     
-    if (existingItem) {
-      // Increment quantity if already in cart
-      setCartItems(cartItems.map(item => 
-        item.id === productId ? { ...item, quantity: item.quantity + 1 } : item
-      ));
+    // Check if this exact product ID already exists in the cart
+    const existingItemIndex = cartItems.findIndex(item => item.id === productId);
+    
+    if (existingItemIndex !== -1) {
+      // Create a new array to avoid direct state mutation
+      const updatedCart = [...cartItems];
+      
+      // Update the quantity of the existing item
+      updatedCart[existingItemIndex] = {
+        ...updatedCart[existingItemIndex],
+        quantity: updatedCart[existingItemIndex].quantity + 1
+      };
+      
+      console.log(`Increasing quantity for ${productId} to ${updatedCart[existingItemIndex].quantity}`);
+      setCartItems(updatedCart);
     } else {
-      // Add new item to cart
+      // Add as new item with quantity 1
+      console.log(`Adding new item ${productId} to cart`);
       setCartItems([...cartItems, { id: productId, quantity: 1 }]);
     }
   };
 
   // Remove from cart
   const removeFromCart = (productId: string) => {
+    console.log("Removing from cart, product ID:", productId);
     const existingItem = cartItems.find(item => item.id === productId);
     
     if (existingItem && existingItem.quantity > 1) {
@@ -227,6 +311,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
           
         if (error) {
           console.error('Error clearing cart in database:', error);
+          Alert.alert('Error', 'Failed to clear cart. Please try again.');
         } else {
           console.log('Cart cleared successfully in database');
         }
@@ -236,6 +321,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       setCartItems([]);
     } catch (error) {
       console.error('Error clearing cart:', error);
+      Alert.alert('Error', 'Failed to clear cart. Please try again.');
     }
   };
 
@@ -366,7 +452,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       getTotalCartItems,
       saveScanResults,
       getPreviousScanResults,
-      refreshCartItems
+      refreshCartItems,
+      forceSaveCart
     }}>
       {children}
     </ProductContext.Provider>
