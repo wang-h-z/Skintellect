@@ -2,7 +2,7 @@
 import { Product, SkinCondition, SkinType } from '../types/product';
 
 // Map of skin conditions to ingredients that should be avoided
-const ingredientConcerns: Record<SkinCondition | SkinType, string[]> = {
+const ingredientConcerns: Record<string, string[]> = {
   // Skin conditions
   'acne': ['Isopropyl Myristate', 'Lanolin', 'Mineral Oil'],
   'rosacea': ['Alcohol', 'Witch Hazel', 'Menthol', 'Peppermint', 'Eucalyptus'],
@@ -27,7 +27,7 @@ const ingredientConcerns: Record<SkinCondition | SkinType, string[]> = {
 };
 
 // Map of skin conditions to beneficial ingredients
-const ingredientBenefits: Record<SkinCondition | SkinType, string[]> = {
+const ingredientBenefits: Record<string, string[]> = {
   // Skin conditions
   'acne': ['Salicylic Acid', 'Benzoyl Peroxide', 'Niacinamide', 'Tea Tree Oil', 'Zinc'],
   'rosacea': ['Aloe Vera', 'Chamomile', 'Niacinamide', 'Azelaic Acid', 'Centella Asiatica'],
@@ -61,7 +61,7 @@ const ingredientBenefits: Record<SkinCondition | SkinType, string[]> = {
 export function analyzeProductSuitability(
   product: Product,
   skinConditions: SkinCondition[],
-  skinType: SkinType | null
+  skinType: string | null
 ): {
   suitable: boolean;
   score: number; // 0-100
@@ -76,7 +76,7 @@ export function analyzeProductSuitability(
 
   // Check if product is designed for user's skin type
   if (skinType) {
-    if (product.skinType.includes(skinType as string) || product.skinType.includes('all')) {
+    if (product.skinType.includes(skinType) || product.skinType.includes('all')) {
       score += 20;
       positives.push(`Formulated for ${skinType} skin`);
     } else {
@@ -86,8 +86,12 @@ export function analyzeProductSuitability(
   }
 
   // Check if product targets any of user's skin conditions
-  const matchingConditions = product.skinConditions.filter(condition => 
-    skinConditions.includes(condition as SkinCondition)
+  // Safely convert string arrays to handle type compatibility
+  const productConditionsAsString = product.skinConditions;
+  const skinConditionsAsString = skinConditions.map(c => c.toString());
+  
+  const matchingConditions = productConditionsAsString.filter(condition => 
+    skinConditionsAsString.includes(condition)
   );
   
   if (matchingConditions.length > 0) {
@@ -96,7 +100,7 @@ export function analyzeProductSuitability(
   }
 
   // Analyze ingredient compatibility
-  const allConcerns = [...skinConditions];
+  const allConcerns = [...skinConditionsAsString];
   if (skinType) allConcerns.push(skinType);
   
   // Check for beneficial ingredients
@@ -173,7 +177,7 @@ export function analyzeProductSuitability(
 export function getRecommendedProducts(
   products: Product[],
   scanConditions: SkinCondition[],
-  userSkinType: SkinType | null,
+  userSkinType: string | null,
   userConditions: SkinCondition[]
 ): Array<Product & { 
   suitability: {
