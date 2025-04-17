@@ -1,10 +1,22 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Alert,
+  ScrollView
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { SkinCondition } from '../types/product';
+import { useProducts } from '../context/ProductContext';
+import { useOnboarding } from '../context/OnboardingContext';
 
 const ScanFaceScreen = () => {
   const navigation = useNavigation();
@@ -13,8 +25,13 @@ const ScanFaceScreen = () => {
   const [photo, setPhoto] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [resultsReady, setResultsReady] = useState(false);
-  const [skinConditions, setSkinConditions] = useState<string[]>([]);
+  const [skinConditions, setSkinConditions] = useState<SkinCondition[]>([]);
+  const [scanCompleted, setScanCompleted] = useState(false);
   const cameraRef = useRef<any>(null);
+  
+  // Access product context to store scan results
+  const { setScanResults, saveScanResults } = useProducts();
+  const { userProfile } = useOnboarding();
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -32,20 +49,72 @@ const ScanFaceScreen = () => {
     setPhoto(null);
     setResultsReady(false);
     setSkinConditions([]);
+    setScanCompleted(false);
   };
 
   const analyzePicture = async () => {
     setAnalyzing(true);
-    // Simulate analysis delay
-    setTimeout(() => {
-      // For testing, add more mock conditions to demonstrate scrolling
-      const mockConditions = ['Acne', 'Dryness', 'Redness', 'Uneven tone', 'Fine lines', 'Hyperpigmentation'];
-      setSkinConditions(mockConditions);
+    
+    try {
+      // In a real app, this would call an AI model API
+      // For now, simulate analysis with random conditions and some based on user profile
+      
+      // Simulate analysis delay
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Generate some realistic conditions based on user profile
+      const possibleConditions: SkinCondition[] = [
+        'acne', 'dryness', 'redness', 'uneven tone', 
+        'fine lines', 'large pores', 'hyperpigmentation', 'dullness'
+      ];
+      
+      // Start with 1-3 random conditions
+      const numConditions = Math.floor(Math.random() * 3) + 1;
+      const randomConditions: SkinCondition[] = [];
+      
+      for (let i = 0; i < numConditions; i++) {
+        const index = Math.floor(Math.random() * possibleConditions.length);
+        if (!randomConditions.includes(possibleConditions[index])) {
+          randomConditions.push(possibleConditions[index]);
+        }
+      }
+      
+      // If user has a known skin type, add a related condition
+      if (userProfile.skinType === 'dry' && !randomConditions.includes('dryness')) {
+        randomConditions.push('dryness');
+      } else if (userProfile.skinType === 'oily' && !randomConditions.includes('acne')) {
+        randomConditions.push('acne');
+      } else if (userProfile.skinType === 'sensitive' && !randomConditions.includes('redness')) {
+        randomConditions.push('redness');
+      }
+      
+      setSkinConditions(randomConditions);
       setResultsReady(true);
+      
+      // Store scan results in context
+      const scanResults = {
+        skinConditions: randomConditions,
+        timestamp: new Date()
+      };
+      setScanResults(scanResults);
+      
+      // Save scan results to database
+      await saveScanResults();
+      
+    } catch (error) {
+      console.error('Error analyzing picture:', error);
+      Alert.alert('Error', 'Failed to analyze skin. Please try again.');
+    } finally {
       setAnalyzing(false);
-    }, 3000);
+    }
   };
 
+  const viewRecommendations = () => {
+    setScanCompleted(true);
+    navigation.navigate('Shop' as never);
+  };
+
+  // Flip camera function
   const flipCamera = () => {
     setCameraType(
       cameraType === 'back' ? 'front' : 'back'
@@ -54,6 +123,7 @@ const ScanFaceScreen = () => {
 
   // Handle permission states
   if (!permission) {
+    // Camera permissions are still loading
     return (
       <View style={styles.centerContainer}>
         <Text>Requesting camera permission...</Text>
@@ -62,6 +132,7 @@ const ScanFaceScreen = () => {
   }
   
   if (!permission.granted) {
+    // Camera permissions not granted yet
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>No access to camera</Text>
@@ -150,30 +221,48 @@ const ScanFaceScreen = () => {
                   {skinConditions.length > 0 ? (
                     <>
                       <Text style={styles.resultsSubtitle}>
-                        We've detected the following conditions:
+                        We've detected the following concerns:
                       </Text>
                       
                       <View style={styles.conditionsList}>
                         {skinConditions.map((condition, index) => (
                           <View key={index} style={styles.conditionItem}>
                             <Feather name="check-circle" size={20} color="#D43F57" />
-                            <Text style={styles.conditionText}>{condition}</Text>
+                            <Text style={styles.conditionText}>{condition.charAt(0).toUpperCase() + condition.slice(1)}</Text>
                           </View>
                         ))}
                       </View>
                       
+                      <Text style={styles.analysisDescription}>
+                        Based on this analysis, we've curated personalized product recommendations for your skin concerns.
+                      </Text>
+                      
                       <Button 
                         mode="contained" 
-                        onPress={() => (navigation as any).navigate('Shop')}
+                        onPress={viewRecommendations}
                         style={styles.button}
                       >
                         View Recommended Products
                       </Button>
                     </>
                   ) : (
-                    <Text style={styles.resultsSubtitle}>
-                      No skin concerns detected! Your skin looks healthy.
-                    </Text>
+                    <>
+                      <Text style={styles.resultsSubtitle}>
+                        No skin concerns detected! Your skin looks healthy.
+                      </Text>
+                      
+                      <Text style={styles.analysisDescription}>
+                        We still have some great product recommendations for your skin type.
+                      </Text>
+                      
+                      <Button 
+                        mode="contained" 
+                        onPress={viewRecommendations}
+                        style={styles.button}
+                      >
+                        View Products
+                      </Button>
+                    </>
                   )}
                   
                   <TouchableOpacity 
@@ -380,6 +469,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 10,
+  },
+  analysisDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
   },
   button: {
     backgroundColor: '#D43F57',
