@@ -1,13 +1,22 @@
 // data/productData.ts
 import { Product } from '../types/product';
 
+import imgCleanser from "../assets/images/gentlefoamcleanser.jpg"
+import hydSerum from "../assets/images/hydratingserum.jpg"
+import soothingAloeGel from "../assets/images/soothingaloegel.png"
+import oilControl from "../assets/images/oilcontrolmoisturizer.png"
+import vitcserum from "../assets/images/vitcserum.jpg"
+import ntreatment from "../assets/images/ntreatment.png"
+import retinolnight from "../assets/images/retinolnight.jpg"
+import b5acid from "../assets/images/b5acid.png"
+
 export const products: Product[] = [
   {
     id: '1',
     name: 'Gentle Foaming Cleanser',
     brand: 'SkinCare Essentials',
     price: 24.99,
-    image: 'https://via.placeholder.com/150',
+    image: imgCleanser,
     rating: 4.5,
     description: 'A gentle foaming cleanser that removes impurities without stripping the skin.',
     skinType: ['oily', 'combination', 'normal'],
@@ -39,7 +48,7 @@ export const products: Product[] = [
     name: 'Hydrating Serum',
     brand: 'Hydro Boost',
     price: 34.99,
-    image: 'https://via.placeholder.com/150',
+    image: hydSerum,
     rating: 4.8,
     description: 'This hydrating serum contains hyaluronic acid to deeply moisturize the skin.',
     skinType: ['dry', 'normal', 'sensitive'],
@@ -71,7 +80,7 @@ export const products: Product[] = [
     name: 'Oil Control Moisturizer',
     brand: 'Clear Skin',
     price: 28.50,
-    image: 'https://via.placeholder.com/150',
+    image: oilControl,
     rating: 4.3,
     description: 'Lightweight moisturizer that controls oil while providing hydration.',
     skinType: ['oily', 'combination'],
@@ -103,7 +112,7 @@ export const products: Product[] = [
     name: 'Vitamin C Brightening Serum',
     brand: 'Glow Getter',
     price: 42.99,
-    image: 'https://via.placeholder.com/150',
+    image: vitcserum,
     rating: 4.7,
     description: 'This serum brightens skin and reduces dark spots with vitamin C.',
     skinType: ['all'],
@@ -135,7 +144,7 @@ export const products: Product[] = [
     name: 'Niacinamide Treatment',
     brand: 'SkinCare Science',
     price: 19.99,
-    image: 'https://via.placeholder.com/150',
+    image: ntreatment,
     rating: 4.4,
     description: 'Targets blemishes and minimizes pores with 10% niacinamide.',
     skinType: ['oily', 'combination', 'normal'],
@@ -167,7 +176,7 @@ export const products: Product[] = [
     name: 'Soothing Aloe Gel',
     brand: 'Calm Skin',
     price: 16.50,
-    image: 'https://via.placeholder.com/150',
+    image: soothingAloeGel,
     rating: 4.2,
     description: 'Calming gel that soothes irritation and reduces redness.',
     skinType: ['sensitive', 'normal', 'dry'],
@@ -199,7 +208,7 @@ export const products: Product[] = [
     name: 'Retinol Renewal Night Cream',
     brand: 'Age Defying',
     price: 38.99,
-    image: 'https://via.placeholder.com/150',
+    image: retinolnight,
     rating: 4.6,
     description: 'Anti-aging night cream with retinol to reduce fine lines and wrinkles.',
     skinType: ['normal', 'combination', 'dry'],
@@ -231,7 +240,7 @@ export const products: Product[] = [
     name: 'Hyaluronic Acid Moisture Gel',
     brand: 'Water Surge',
     price: 29.99,
-    image: 'https://via.placeholder.com/150',
+    image: b5acid,
     rating: 4.5,
     description: 'Lightweight gel moisturizer with multiple molecular weights of hyaluronic acid.',
     skinType: ['all'],

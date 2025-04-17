@@ -1,4 +1,5 @@
 // types/product.ts
+import { ImageSourcePropType } from 'react-native';
 
 export interface Ingredient {
     name: string;
@@ -12,7 +13,7 @@ export interface Ingredient {
     name: string;
     brand: string;
     price: number;
-    image: string;
+    image: string | ImageSourcePropType;
     rating: number;
     description: string;
     skinType: string[];

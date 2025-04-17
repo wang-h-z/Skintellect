@@ -7,7 +7,8 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  Modal
+  Modal,
+  ImageSourcePropType
 } from 'react-native';
 import { Button } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
@@ -53,6 +54,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     return '#F44336'; // Poor match - red
   };
 
+  const imageSource: ImageSourcePropType =
+    typeof product.image === 'string'
+      ? { uri: product.image }   // remote URL
+      : product.image;  
+
+  console.log('product.image →', product.image);
+  console.log('imageSource →', imageSource);
+  
   return (
     <Modal 
       visible={visible} 
@@ -67,7 +76,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </TouchableOpacity>
           
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Image source={{ uri: product.image }} style={styles.productImage} />
+            <Image source={imageSource} style={styles.productImage} />
             
             <View style={styles.productHeader}>
               <Text style={styles.brand}>{product.brand}</Text>

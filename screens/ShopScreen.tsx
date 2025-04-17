@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Image, 
   ActivityIndicator,
-  TextInput
+  TextInput,
+  ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -166,6 +167,10 @@ const ShopScreen = () => {
     // Find the suitability info if it exists
     const recommendedItem = recommendedProducts.find(p => p.id === item.id);
     const hasSuitabilityInfo = !!recommendedItem;
+    const imageSource: ImageSourcePropType =
+        typeof item.image === 'string'
+        ? { uri: item.image }   // remote URL
+        : (item.image as ImageSourcePropType); // local require/import
     
     return (
       <TouchableOpacity 
@@ -173,7 +178,7 @@ const ShopScreen = () => {
         activeOpacity={0.8}
         onPress={() => handleProductPress(item)}
       >
-        <Image source={{ uri: item.image }} style={styles.productImage} />
+        <Image source={imageSource}         style={styles.productImage} />
         
         {hasSuitabilityInfo && activeFilter === 'recommended' && (
           <View style={[

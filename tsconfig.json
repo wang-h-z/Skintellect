@@ -3,5 +3,12 @@
   "compilerOptions": {
     "strict": true,
     "allowJs": true
-  }
+  },
+  "include": [
+    "global.d.ts", // <-- ensure your declarations file is picked up
+    ".",         // or ".", if your code lives at the root
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }
+
