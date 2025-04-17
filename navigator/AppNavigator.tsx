@@ -23,15 +23,19 @@ import ConfirmationScreen from '../screens/onboarding/ConfirmationScreen';
 import ScanFaceScreen from '../screens/ScanFaceScreen';
 import ShopScreen from '../screens/ShopScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import CartScreen from '../screens/CartScreen';
 
 // Providers
 import { OnboardingProvider } from '../context/OnboardingContext';
+import { ProductProvider } from '../context/ProductContext';
+import { useProducts } from '../context/ProductContext';
 
 // Define basic navigator param lists
 type RootStackParamList = {
   Auth: undefined;
   Onboarding: undefined;
   MainTabs: undefined;
+  Cart: undefined;
 };
 
 type AuthStackParamList = {
@@ -50,6 +54,7 @@ type OnboardingStackParamList = {
 type MainTabsParamList = {
   Scan: undefined;
   Shop: undefined;
+  Cart: undefined;
   Self: undefined;
 };
 
@@ -81,6 +86,43 @@ const OnboardingNavigator = () => {
         <OnboardingStack.Screen name="ConfirmationScreen" component={ConfirmationScreen} />
       </OnboardingStack.Navigator>
     </OnboardingProvider>
+  );
+};
+
+// Cart Badge component for tab bar
+const CartTabBadge = () => {
+  const { getTotalCartItems } = useProducts();
+  const totalItems = getTotalCartItems();
+  
+  return (
+    <>
+      <Feather name="shopping-cart" size={24} color="#D43F57" />
+      {totalItems > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            right: -6,
+            top: -3,
+            backgroundColor: '#D43F57',
+            borderRadius: 7,
+            width: 14,
+            height: 14,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: 'white',
+              fontSize: 10,
+              fontWeight: 'bold',
+            }}
+          >
+            {totalItems > 9 ? '9+' : totalItems}
+          </Text>
+        </View>
+      )}
+    </>
   );
 };
 
@@ -119,6 +161,15 @@ const MainTabsNavigator = () => {
         }}
       />
       <MainTabs.Screen
+        name="Cart"
+        component={CartScreen}
+        options={{
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            <CartTabBadge />
+          ),
+        }}
+      />
+      <MainTabs.Screen
         name="Self"
         component={ProfileScreen}
         options={{
@@ -135,8 +186,19 @@ const MainTabsNavigator = () => {
 const SESSION_KEY = 'skintellect_session';
 const ONBOARDED_KEY = 'skintellect_onboarded';
 
-// Root app navigator
-const AppNavigator = () => {
+// Root app navigator with providers
+const AppNavigatorWithProviders = () => {
+  return (
+    <OnboardingProvider>
+      <ProductProvider>
+        <AppNavigatorContent />
+      </ProductProvider>
+    </OnboardingProvider>
+  );
+};
+
+// Root app navigator content
+const AppNavigatorContent = () => {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [hasOnboarded, setHasOnboarded] = useState(false);
@@ -310,11 +372,25 @@ const AppNavigator = () => {
         ) : !hasOnboarded ? (
           <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
         ) : (
-          <RootStack.Screen name="MainTabs" component={MainTabsNavigator} />
+          <>
+            <RootStack.Screen name="MainTabs" component={MainTabsNavigator} />
+            <RootStack.Screen 
+              name="Cart" 
+              component={CartScreen} 
+              options={{
+                headerShown: true,
+                headerTitle: 'Shopping Cart',
+                headerTintColor: '#D43F57',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+          </>
         )}
       </RootStack.Navigator>
     </NavigationContainer>
   );
 };
 
-export default AppNavigator;
+export default AppNavigatorWithProviders;
