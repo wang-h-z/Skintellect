@@ -11,146 +11,69 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { Badge, Button } from 'react-native-paper';
+import { Badge, Button, Chip } from 'react-native-paper';
 import { supabase } from '../config/supabaseClient';
-
-// Mock data for products
-interface Product {
-  id: string;
-  name: string;
-  brand: string;
-  price: number;
-  image: string;
-  rating: number;
-  description: string;
-  skinType: string[];
-  skinConditions: string[];
-  featured: boolean;
-}
-
-// Mock product data (in a real app, this would come from your backend)
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Gentle Foaming Cleanser',
-    brand: 'SkinCare Essentials',
-    price: 24.99,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.5,
-    description: 'A gentle foaming cleanser that removes impurities without stripping the skin.',
-    skinType: ['oily', 'combination', 'normal'],
-    skinConditions: ['acne', 'blackheads'],
-    featured: true,
-  },
-  {
-    id: '2',
-    name: 'Hydrating Serum',
-    brand: 'Hydro Boost',
-    price: 34.99,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.8,
-    description: 'This hydrating serum contains hyaluronic acid to deeply moisturize the skin.',
-    skinType: ['dry', 'normal', 'sensitive'],
-    skinConditions: ['dryness', 'rosacea'],
-    featured: true,
-  },
-  {
-    id: '3',
-    name: 'Oil Control Moisturizer',
-    brand: 'Clear Skin',
-    price: 28.50,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.3,
-    description: 'Lightweight moisturizer that controls oil while providing hydration.',
-    skinType: ['oily', 'combination'],
-    skinConditions: ['acne', 'blackheads'],
-    featured: false,
-  },
-  {
-    id: '4',
-    name: 'Vitamin C Brightening Serum',
-    brand: 'Glow Getter',
-    price: 42.99,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.7,
-    description: 'This serum brightens skin and reduces dark spots with vitamin C.',
-    skinType: ['all'],
-    skinConditions: ['hyperpigmentation', 'dullness'],
-    featured: true,
-  },
-  {
-    id: '5',
-    name: 'Niacinamide Treatment',
-    brand: 'SkinCare Science',
-    price: 19.99,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.4,
-    description: 'Targets blemishes and minimizes pores with 10% niacinamide.',
-    skinType: ['oily', 'combination', 'normal'],
-    skinConditions: ['acne', 'large pores'],
-    featured: false,
-  },
-  {
-    id: '6',
-    name: 'Soothing Aloe Gel',
-    brand: 'Calm Skin',
-    price: 16.50,
-    image: 'https://via.placeholder.com/150',
-    rating: 4.2,
-    description: 'Calming gel that soothes irritation and reduces redness.',
-    skinType: ['sensitive', 'normal', 'dry'],
-    skinConditions: ['rosacea', 'eczema', 'sunburn'],
-    featured: false,
-  },
-];
+import { useProducts } from '../context/ProductContext';
+import { useOnboarding } from '../context/OnboardingContext';
+import { Product, SkinCondition } from '../types/product';
+import ProductDetailModal from '../components/ProductDetailModal';
+import { getRecommendedProducts } from '../utils/IngredientAnalyzer';
 
 const ShopScreen = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const { products, scanResults, addToCart, getTotalCartItems } = useProducts();
+  const { userProfile } = useOnboarding();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState('recommended');
   const [searchQuery, setSearchQuery] = useState('');
-  const [cartItems, setCartItems] = useState<{id: string, quantity: number}[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  // New state for recommended products based on skin scan
+  const [recommendedProducts, setRecommendedProducts] = useState<Array<Product & { suitability: any }>>([]);
+  const [hasNewScan, setHasNewScan] = useState(false);
 
   useEffect(() => {
-    // In a real app, you would fetch products from your API
-    // For now, we'll just use the mock data
-    setProducts(mockProducts);
+    // Check if there's a recent scan
+    if (scanResults && scanResults.timestamp) {
+      const scanTime = new Date(scanResults.timestamp).getTime();
+      const currentTime = new Date().getTime();
+      const timeDifference = currentTime - scanTime;
+      
+      // If scan is less than 1 hour old, consider it new
+      if (timeDifference < 60 * 60 * 1000) {
+        setHasNewScan(true);
+      }
+    }
     
-    // Simulate loading delay
+    // In a real app, you would fetch products from your API
+    // For now, we'll just simulate loading delay
     setTimeout(() => {
       setLoading(false);
     }, 1000);
     
-    // Fetch user profile for personalized recommendations
-    fetchUserProfile();
-  }, []);
+    // Generate recommended products based on scan and profile
+    generateRecommendations();
+    
+  }, [scanResults, userProfile, products]);
 
   useEffect(() => {
     filterProducts(activeFilter);
-  }, [products, activeFilter, searchQuery, userProfile]);
+  }, [products, activeFilter, searchQuery, recommendedProducts, userProfile]);
 
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-          
-        if (error) {
-          console.error('Error fetching profile:', error);
-        } else {
-          setUserProfile(data);
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    }
+  const generateRecommendations = () => {
+    const scanConditions = scanResults ? scanResults.skinConditions : [];
+    const userConditions = userProfile.skinConditions as SkinCondition[];
+    const userSkinType = userProfile.skinType;
+    
+    const recommendations = getRecommendedProducts(
+      products,
+      scanConditions,
+      userSkinType,
+      userConditions
+    );
+    
+    setRecommendedProducts(recommendations);
   };
 
   const filterProducts = (filter: string) => {
@@ -169,21 +92,24 @@ const ShopScreen = () => {
     // Apply category filter
     switch (filter) {
       case 'recommended':
-        if (userProfile) {
-          // Filter by user's skin type and conditions
-          const userSkinType = userProfile.skin_type;
-          const userSkinConditions = Array.isArray(userProfile.skin_conditions)
-                                      ? userProfile.skin_conditions
-                                      : [];
-
-          
-          result = result.filter(product => 
-            (product.skinType.includes(userSkinType) || product.skinType.includes('all')) &&
-            (userSkinConditions.some((condition: string) => product.skinConditions.includes(condition)) || 
-             userSkinConditions.length === 0)
-          );
+        // Use our analyzed recommended products
+        if (recommendedProducts.length > 0) {
+          // Extract just the product data (without suitability)
+          result = recommendedProducts.map(item => ({
+            id: item.id,
+            name: item.name,
+            brand: item.brand,
+            price: item.price,
+            image: item.image,
+            rating: item.rating,
+            description: item.description,
+            skinType: item.skinType,
+            skinConditions: item.skinConditions,
+            featured: item.featured,
+            ingredients: item.ingredients
+          }));
         } else {
-          // If no user profile, just show featured products
+          // Fallback to featured products if no recommendations
           result = result.filter(product => product.featured);
         }
         break;
@@ -206,22 +132,14 @@ const ShopScreen = () => {
     setFilteredProducts(result);
   };
 
-  const addToCart = (productId: string) => {
-    const existingItem = cartItems.find(item => item.id === productId);
-    
-    if (existingItem) {
-      // Increment quantity if already in cart
-      setCartItems(cartItems.map(item => 
-        item.id === productId ? { ...item, quantity: item.quantity + 1 } : item
-      ));
-    } else {
-      // Add new item to cart
-      setCartItems([...cartItems, { id: productId, quantity: 1 }]);
-    }
+  const handleProductPress = (product: Product) => {
+    setSelectedProduct(product);
+    setModalVisible(true);
   };
 
-  const getTotalCartItems = () => {
-    return cartItems.reduce((total, item) => total + item.quantity, 0);
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedProduct(null);
   };
 
   const renderCategoryButton = (title: string, category: string) => (
@@ -241,34 +159,56 @@ const ShopScreen = () => {
     </TouchableOpacity>
   );
 
-  // In your renderProductItem function, let's update the structure slightly:
-const renderProductItem = ({ item }: { item: Product }) => (
-  <TouchableOpacity 
-    style={styles.productCard}
-    activeOpacity={0.8} // Makes the touch effect more subtle
-  >
-    <Image source={{ uri: item.image }} style={styles.productImage} />
-    <View style={styles.productInfo}>
-      <Text style={styles.brand}>{item.brand}</Text>
-      <Text style={styles.productName}>{item.name}</Text>
-      
-      <View style={styles.priceRatingRow}>
-        <Text style={styles.price}>${item.price.toFixed(2)}</Text>
-        <View style={styles.ratingContainer}>
-          <Feather name="star" size={14} color="#FFD700" />
-          <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
-        </View>
-      </View>
-      
+  const renderProductItem = ({ item }: { item: Product }) => {
+    // Find the suitability info if it exists
+    const recommendedItem = recommendedProducts.find(p => p.id === item.id);
+    const hasSuitabilityInfo = !!recommendedItem;
+    
+    return (
       <TouchableOpacity 
-        style={styles.addButton}
-        onPress={() => addToCart(item.id)}
+        style={styles.productCard}
+        activeOpacity={0.8}
+        onPress={() => handleProductPress(item)}
       >
-        <Text style={styles.addButtonText}>Add to Cart</Text>
+        <Image source={{ uri: item.image }} style={styles.productImage} />
+        
+        {hasSuitabilityInfo && activeFilter === 'recommended' && (
+          <View style={[
+            styles.compatibilityBadge, 
+            { 
+              backgroundColor: 
+                recommendedItem.suitability.score >= 70 ? '#4CAF50' : 
+                recommendedItem.suitability.score >= 50 ? '#FF9800' : '#F44336'
+            }
+          ]}>
+            <Text style={styles.compatibilityScore}>
+              {recommendedItem.suitability.score}%
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.productInfo}>
+          <Text style={styles.brand}>{item.brand}</Text>
+          <Text style={styles.productName}>{item.name}</Text>
+          
+          <View style={styles.priceRatingRow}>
+            <Text style={styles.price}>${item.price.toFixed(2)}</Text>
+            <View style={styles.ratingContainer}>
+              <Feather name="star" size={14} color="#FFD700" />
+              <Text style={styles.rating}>{item.rating.toFixed(1)}</Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => addToCart(item.id)}
+          >
+            <Text style={styles.addButtonText}>Add to Cart</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
-);
+    );
+  };
 
   if (loading) {
     return (
@@ -295,6 +235,16 @@ const renderProductItem = ({ item }: { item: Product }) => (
         </View>
       </View>
       
+      {/* Show scan result banner if there's a new scan */}
+      {hasNewScan && scanResults && (
+        <View style={styles.scanBanner}>
+          <Feather name="check-circle" size={20} color="#4CAF50" />
+          <Text style={styles.scanBannerText}>
+            Products recommended based on your recent skin scan
+          </Text>
+        </View>
+      )}
+      
       <View style={styles.searchContainer}>
         <Feather name="search" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
@@ -311,6 +261,41 @@ const renderProductItem = ({ item }: { item: Product }) => (
         {renderCategoryButton('Best Sellers', 'bestsellers')}
         {renderCategoryButton('All Products', 'all')}
       </View>
+      
+      {/* Display skin concerns as chips when filter is on recommended */}
+      {activeFilter === 'recommended' && ((scanResults?.skinConditions?.length ?? 0) > 0 || userProfile.skinConditions.length > 0) && (
+  <View style={styles.concernsContainer}>
+    <Text style={styles.concernsLabel}>Products for your skin concerns:</Text>
+    <View style={styles.chipsContainer}>
+      {scanResults?.skinConditions?.map((condition, index) => (
+        <Chip 
+          key={`scan-${index}`} 
+          style={styles.concernChip}
+          textStyle={styles.concernChipText}
+          icon={() => <Feather name="camera" size={16} color="#D43F57" />}
+        >
+          {condition}
+        </Chip>
+      ))}
+      {userProfile.skinConditions.map((condition, index) => {
+        // Skip if already shown from scan results
+        if (scanResults?.skinConditions?.includes(condition as SkinCondition)) {
+          return null;
+        }
+        return (
+          <Chip 
+            key={`profile-${index}`} 
+            style={styles.concernChip}
+            textStyle={styles.concernChipText}
+            icon={() => <Feather name="user" size={16} color="#D43F57" />}
+          >
+            {condition}
+          </Chip>
+        );
+      })}
+    </View>
+  </View>
+)}
       
       {filteredProducts.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -329,6 +314,14 @@ const renderProductItem = ({ item }: { item: Product }) => (
           contentContainerStyle={styles.productList}
         />
       )}
+      
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        visible={modalVisible}
+        product={selectedProduct}
+        onClose={closeModal}
+        onAddToCart={addToCart}
+      />
     </SafeAreaView>
   );
 };
@@ -371,6 +364,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#D43F57',
     fontSize: 10,
   },
+  scanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#E8F5E9',
+    marginHorizontal: 15,
+    marginTop: 10,
+    borderRadius: 8,
+  },
+  scanBannerText: {
+    color: '#2E7D32',
+    marginLeft: 10,
+    fontSize: 14,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -392,7 +399,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 10,
   },
   categoryButton: {
     paddingVertical: 8,
@@ -414,13 +421,49 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  concernsContainer: {
+    paddingHorizontal: 15,
+    marginBottom: 15,
+  },
+  concernsLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  concernChip: {
+    margin: 4,
+    backgroundColor: '#FFF0F0',
+  },
+  concernChipText: {
+    color: '#D43F57',
+  },
   productList: {
     padding: 10,
+  },
+  productCard: {
+    flex: 1,
+    margin: 5,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    minHeight: 290,
+    position: 'relative',
   },
   productImage: {
     width: '100%',
     height: 150,
     resizeMode: 'cover',
+  },
+  productInfo: {
+    padding: 10,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   brand: {
     fontSize: 12,
@@ -434,15 +477,53 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     height: 40,
   },
+  priceRatingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 5,
+  },
+  price: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#D43F57',
+  },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
   },
   rating: {
     fontSize: 12,
     color: '#666',
     marginLeft: 3,
+  },
+  addButton: {
+    backgroundColor: '#D43F57',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    width: '100%',
+  },
+  addButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  compatibilityBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compatibilityScore: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
   emptyContainer: {
     flex: 1,
@@ -462,47 +543,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  // Updated styles for the product card and button
-priceRatingRow: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 10,
-  marginTop: 5,
-},
-price: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#D43F57',
-},
-addButton: {
-  backgroundColor: '#D43F57',
-  borderRadius: 8,
-  paddingVertical: 8,
-  alignItems: 'center',
-  width: '100%',
-},
-addButtonText: {
-  color: 'white',
-  fontWeight: 'bold',
-  fontSize: 14,
-},
-productCard: {
-  flex: 1,
-  margin: 5,
-  backgroundColor: 'white',
-  borderRadius: 10,
-  overflow: 'hidden',
-  borderWidth: 1,
-  borderColor: '#FFCDD2',
-  // Adding this ensures the card has enough space
-  minHeight: 290,
-},
-productInfo: {
-  padding: 10,
-  flex: 1,
-  justifyContent: 'space-between',
-},
 });
 
-export default ShopScreen; 
+export default ShopScreen;
