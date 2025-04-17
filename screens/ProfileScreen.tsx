@@ -22,29 +22,15 @@ const ProfileScreen = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { cartItems, getPreviousScanResults } = useProducts();
   const [scanCount, setScanCount] = useState(0);
   const [productCount, setProductCount] = useState(0);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        // Get scan count from scan history
-        const scanHistory = await getPreviousScanResults();
-        setScanCount(scanHistory.length);
-        
-        // Get product count from cart items
-        setProductCount(cartItems.length);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      }
-    };
-    
-    fetchStats();
-  }, []);
+  
+  // Get cart items from context
+  const { cartItems, getPreviousScanResults } = useProducts();
 
   useEffect(() => {
     fetchProfile();
+    fetchStats();
   }, []);
 
   const fetchProfile = async () => {
@@ -84,6 +70,33 @@ const ProfileScreen = () => {
       setLoading(false);
     }
   };  
+  
+  const fetchStats = async () => {
+    try {
+      // Get scan count from Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Fetch scan results and count them
+        const { data: scanData, error: scanError } = await supabase
+          .from('scan_results')
+          .select('*')
+          .eq('user_id', user.id);
+            
+        if (scanError) {
+          console.error('Error fetching scan results:', scanError);
+        } else {
+          setScanCount(scanData ? scanData.length : 0);
+          console.log(`Found ${scanData?.length || 0} scan records`);
+        }
+        
+        // Set product count from cart items context
+        setProductCount(cartItems.length);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
   
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -181,13 +194,13 @@ const ProfileScreen = () => {
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Feather name="camera" size={24} color="#D43F57" />
-              <Text style={styles.statCount}>{scanCount}</Text>
+              <Text style={styles.statCount}>{scanCount.toString()}</Text>
               <Text style={styles.statLabel}>Scans</Text>
             </View>
             
             <View style={styles.statItem}>
               <Feather name="shopping-bag" size={24} color="#D43F57" />
-              <Text style={styles.statCount}>{productCount}</Text>
+              <Text style={styles.statCount}>{productCount.toString()}</Text>
               <Text style={styles.statLabel}>Products</Text>
             </View>
             

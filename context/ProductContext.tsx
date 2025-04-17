@@ -16,7 +16,7 @@ interface ProductContextType {
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   getTotalCartItems: () => number;
-  saveScanResults: () => Promise<void>;
+  saveScanResults: () => Promise<boolean>;
   getPreviousScanResults: () => Promise<ScanResult[]>;
 }
 
@@ -55,7 +55,6 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Fetch cart items from Supabase
-  // In the fetchCartItems function:
   const fetchCartItems = async (userId: string) => {
     try {
       console.log("Fetching cart items for user:", userId);
@@ -87,9 +86,6 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error in fetchCartItems:', error);
     }
   };
-
-// In the useEffect that saves cart items:
-console.log("Attempting to save cart items:", cartItems);
 
   // Fetch the latest scan result from Supabase
   const fetchLatestScanResult = async (userId: string) => {
@@ -125,6 +121,7 @@ console.log("Attempting to save cart items:", cartItems);
     
     const saveCartItems = async () => {
       try {
+        console.log("Attempting to save cart items:", cartItems);
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) return;
@@ -167,6 +164,7 @@ console.log("Attempting to save cart items:", cartItems);
 
   // Add to cart
   const addToCart = (productId: string) => {
+    console.log("Adding to cart, product ID:", productId);
     const existingItem = cartItems.find(item => item.id === productId);
     
     if (existingItem) {
@@ -263,7 +261,7 @@ console.log("Attempting to save cart items:", cartItems);
 
   // Save scan results to Supabase
   const saveScanResults = async () => {
-    if (!scanResults) return;
+    if (!scanResults) return false;
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -271,6 +269,12 @@ console.log("Attempting to save cart items:", cartItems);
       if (!user) {
         throw new Error('User not authenticated');
       }
+      
+      console.log('Saving scan results to Supabase:', {
+        user_id: user.id,
+        skin_conditions: scanResults.skinConditions,
+        timestamp: new Date().toISOString()
+      });
       
       const { error } = await supabase
         .from('scan_results')
@@ -281,11 +285,15 @@ console.log("Attempting to save cart items:", cartItems);
         });
         
       if (error) {
+        console.error('Error inserting scan results:', error);
         throw error;
       }
+      
+      console.log('Scan results saved successfully');
+      return true;
     } catch (err) {
       console.error('Error saving scan results:', err);
-      throw err;
+      return false;
     }
   };
 
@@ -317,6 +325,28 @@ console.log("Attempting to save cart items:", cartItems);
       return [];
     }
   };
+
+  // Run a test to directly fetch cart items
+  useEffect(() => {
+    const testCartFetch = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log("No authenticated user");
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      console.log("Direct cart fetch test:", { data, error });
+    };
+
+    if (isInitialized) {
+      testCartFetch();
+    }
+  }, [isInitialized]);
 
   return (
     <ProductContext.Provider value={{

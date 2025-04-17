@@ -98,8 +98,14 @@ const ScanFaceScreen = () => {
       };
       setScanResults(scanResults);
       
-      // Save scan results to database
-      await saveScanResults();
+      // Only save to database when analysis is complete
+      const saveSuccess = await saveScanResults();
+      
+      if (saveSuccess) {
+        console.log('Scan saved successfully');
+      } else {
+        console.warn('Failed to save scan results');
+      }
       
     } catch (error) {
       console.error('Error analyzing picture:', error);

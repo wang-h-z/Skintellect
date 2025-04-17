@@ -156,7 +156,7 @@ const AppNavigator = () => {
             setLoading(false);
             setError("Loading timed out. Please restart the app.");
           }
-        }, 10000);
+        }, 20000);
 
         // Get persisted session and onboarded status from AsyncStorage
         const [sessionData, onboardedData] = await Promise.all([
