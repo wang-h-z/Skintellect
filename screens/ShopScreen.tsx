@@ -18,6 +18,7 @@ import { useOnboarding } from '../context/OnboardingContext';
 import { Product, SkinCondition } from '../types/product';
 import ProductDetailModal from '../components/ProductDetailModal';
 import { getRecommendedProducts } from '../utils/IngredientAnalyzer';
+import CartButton from '../components/CartButton';
 
 const ShopScreen = () => {
   const { products, scanResults, addToCart, getTotalCartItems } = useProducts();
@@ -223,16 +224,7 @@ const ShopScreen = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Shop</Text>
-        <View style={styles.cartIconContainer}>
-          <TouchableOpacity>
-            <Feather name="shopping-cart" size={24} color="#D43F57" />
-            {getTotalCartItems() > 0 && (
-              <Badge style={styles.cartBadge}>
-                {getTotalCartItems()}
-              </Badge>
-            )}
-          </TouchableOpacity>
-        </View>
+        <CartButton />
       </View>
       
       {/* Show scan result banner if there's a new scan */}
