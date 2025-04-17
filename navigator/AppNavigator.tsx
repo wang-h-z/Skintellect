@@ -26,6 +26,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 
 // Providers
 import { OnboardingProvider } from '../context/OnboardingContext';
+import { ProductProvider } from '../context/ProductContext';
 
 // Define basic navigator param lists
 type RootStackParamList = {
@@ -84,50 +85,52 @@ const OnboardingNavigator = () => {
   );
 };
 
-// Main app navigator with tabs
-const MainTabsNavigator = () => {
+// Main app tabs with product provider
+const MainTabsWithProvider = () => {
   return (
-    <MainTabs.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#D43F57',
-        tabBarInactiveTintColor: '#666',
-        tabBarStyle: {
-          backgroundColor: '#FFF5F5',
-          borderTopColor: '#FFCDD2',
-          paddingBottom: 5,
-          paddingTop: 5,
-        },
-      }}
-    >
-      <MainTabs.Screen
-        name="Scan"
-        component={ScanFaceScreen}
-        options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Feather name="camera" size={size} color={color} />
-          ),
+    <ProductProvider>
+      <MainTabs.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: '#D43F57',
+          tabBarInactiveTintColor: '#666',
+          tabBarStyle: {
+            backgroundColor: '#FFF5F5',
+            borderTopColor: '#FFCDD2',
+            paddingBottom: 5,
+            paddingTop: 5,
+          },
         }}
-      />
-      <MainTabs.Screen
-        name="Shop"
-        component={ShopScreen}
-        options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Feather name="shopping-bag" size={size} color={color} />
-          ),
-        }}
-      />
-      <MainTabs.Screen
-        name="Self"
-        component={ProfileScreen}
-        options={{
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <Feather name="user" size={size} color={color} />
-          ),
-        }}
-      />
-    </MainTabs.Navigator>
+      >
+        <MainTabs.Screen
+          name="Scan"
+          component={ScanFaceScreen}
+          options={{
+            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+              <Feather name="camera" size={size} color={color} />
+            ),
+          }}
+        />
+        <MainTabs.Screen
+          name="Shop"
+          component={ShopScreen}
+          options={{
+            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+              <Feather name="shopping-bag" size={size} color={color} />
+            ),
+          }}
+        />
+        <MainTabs.Screen
+          name="Self"
+          component={ProfileScreen}
+          options={{
+            tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+              <Feather name="user" size={size} color={color} />
+            ),
+          }}
+        />
+      </MainTabs.Navigator>
+    </ProductProvider>
   );
 };
 
@@ -310,7 +313,7 @@ const AppNavigator = () => {
         ) : !hasOnboarded ? (
           <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
         ) : (
-          <RootStack.Screen name="MainTabs" component={MainTabsNavigator} />
+          <RootStack.Screen name="MainTabs" component={MainTabsWithProvider} />
         )}
       </RootStack.Navigator>
     </NavigationContainer>
