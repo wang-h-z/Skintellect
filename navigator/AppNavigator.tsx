@@ -152,13 +152,13 @@ const AppNavigator = () => {
         // Set a timeout to prevent indefinite loading
         const timeoutId = setTimeout(() => {
           if (loading) {
-            console.log("Loading timeout reached");
+            console.log("⚠️ Loading timeout reached");
             setLoading(false);
             setError("Loading timed out. Please restart the app.");
           }
         }, 20000);
 
-        console.log("Loading persisted state...");
+        console.log("📱 App startup: Loading persisted state...");
 
         // Get persisted session and onboarded status from AsyncStorage
         const [sessionData, onboardedData] = await Promise.all([
@@ -166,50 +166,40 @@ const AppNavigator = () => {
           AsyncStorage.getItem(ONBOARDED_KEY)
         ]);
 
-        console.log("Persisted data loaded:", { 
+        console.log("📱 Persisted data loaded:", { 
           hasSessionData: !!sessionData, 
           onboardedData 
         });
 
-        // If we have a persisted session, use it
-        if (sessionData) {
-          const parsedSession = JSON.parse(sessionData);
-          setSession(parsedSession);
-          
-          // If session is still valid, check onboarded status from Storage
-          if (parsedSession?.user && parsedSession.expires_at > Date.now() / 1000) {
-            if (onboardedData === 'true') {
-              console.log("Setting onboarded from AsyncStorage");
-              setHasOnboarded(true);
-            } else {
-              console.log("Checking onboarding status from API");
-              await checkOnboardingStatus(parsedSession.user.id);
-            }
-          }
-        } else {
-          console.log("No persisted session, checking current session");
-        }
-
-        // Get current session from Supabase (handles expired sessions)
+        // Get current session from Supabase
         const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-        console.log("Current session:", { hasSession: !!supabaseSession });
+        console.log("📱 Current session:", { hasSession: !!supabaseSession });
         
+        // Set the session state
         setSession(supabaseSession);
         
         if (supabaseSession) {
           // Cache the session
           await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
           
-          // Check onboarding status if we haven't set it from AsyncStorage already
-          if (!hasOnboarded) {
+          // Check if onboarded status is in AsyncStorage
+          if (onboardedData === 'true') {
+            console.log("📱 User is onboarded according to AsyncStorage");
+            setHasOnboarded(true);
+          } else {
+            // If not in AsyncStorage, check from database
             await checkOnboardingStatus(supabaseSession.user.id);
           }
+        } else {
+          // No active session
+          console.log("📱 No active session");
+          setHasOnboarded(false);
         }
         
         setLoading(false);
         clearTimeout(timeoutId);
       } catch (error) {
-        console.error('Error loading persisted state:', error);
+        console.error('❌ Error loading persisted state:', error);
         setLoading(false);
         setError("Failed to load app state. Please try again.");
       }
@@ -220,35 +210,41 @@ const AppNavigator = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, supabaseSession) => {
-        console.log("Auth state changed:", event);
+        console.log("📱 Auth state changed:", event);
+        
+        // Update session state
         setSession(supabaseSession);
         
         if (supabaseSession) {
           // Cache the new session
           await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(supabaseSession));
           
-          // For sign-ins and token refreshes, we want to recheck onboarding status
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          // For sign-ins, we need to check onboarding status
+          if (event === 'SIGNED_IN') {
+            console.log("📱 User signed in, checking onboarding status");
+            
+            // First check AsyncStorage
             const onboardedData = await AsyncStorage.getItem(ONBOARDED_KEY);
             
             if (onboardedData === 'true') {
-              console.log("Setting onboarded to true from AsyncStorage after", event);
+              console.log("📱 User is onboarded according to AsyncStorage");
               setHasOnboarded(true);
-              setLoading(false);
             } else {
-              console.log("Checking onboarding status from API after", event);
+              // If not in AsyncStorage, check the database
               await checkOnboardingStatus(supabaseSession.user.id);
             }
           }
         } else {
           // Clear cached data on signout
           if (event === 'SIGNED_OUT') {
+            console.log("📱 User signed out, clearing cached data");
             await AsyncStorage.removeItem(SESSION_KEY);
             await AsyncStorage.removeItem(ONBOARDED_KEY);
+            setHasOnboarded(false);
           }
-          setHasOnboarded(false);
-          setLoading(false);
         }
+        
+        setLoading(false);
       }
     );
 
@@ -259,61 +255,57 @@ const AppNavigator = () => {
 
   const checkOnboardingStatus = async (userId: string) => {
     try {
-      console.log("Checking onboarding status for user:", userId);
-      
-      // First check if the status is already in AsyncStorage
-      const storedOnboardingStatus = await AsyncStorage.getItem(ONBOARDED_KEY);
-      if (storedOnboardingStatus === 'true') {
-        console.log("User has already onboarded according to AsyncStorage");
-        setHasOnboarded(true);
-        setLoading(false);
-        return;
-      }
+      console.log("📱 Checking onboarding status for user:", userId);
       
       // Check if a profile exists in Supabase
       const { data, error } = await supabase
         .from('profiles')
         .select('has_onboarded')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
         
-      console.log("Profile check result:", { data, error });
-      
-      if (error && error.code !== 'PGRST116') { 
-        // Handle errors other than "no rows returned"
-        console.error('Error checking onboarding status:', error);
-        setHasOnboarded(false);
-        await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
-      } else if (!data) {
-        // No profile exists yet - create one with default values
-        console.log("No profile found for user, creating a new one");
+      if (error) {
+        console.error('❌ Error checking onboarding status:', error);
         
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            has_onboarded: false,
-          });
+        // Only create a default profile if we get a "not found" error
+        if (error.code === 'PGRST116') {
+          console.log("📱 No profile found, creating default profile");
           
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: userId,
+              has_onboarded: false,
+            });
+            
+          if (insertError) {
+            console.error('❌ Error creating profile:', insertError);
+          }
+          
+          setHasOnboarded(false);
+          await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
+        } else {
+          // For other errors, assume not onboarded to be safe
+          setHasOnboarded(false);
+          await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
         }
-        
-        setHasOnboarded(false);
-        await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
-      } else {
+      } else if (data) {
         // Profile exists, use its onboarding status
-        const onboarded = data.has_onboarded || false;
-        console.log("Profile exists, has_onboarded =", onboarded);
+        console.log("📱 Profile found, has_onboarded =", data.has_onboarded);
+        
+        const onboarded = !!data.has_onboarded;
         setHasOnboarded(onboarded);
         await AsyncStorage.setItem(ONBOARDED_KEY, onboarded ? 'true' : 'false');
+      } else {
+        // No data returned but also no error
+        console.log("📱 No profile data returned, setting has_onboarded to false");
+        setHasOnboarded(false);
+        await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
       }
     } catch (error) {
-      console.error('Error in checkOnboardingStatus:', error);
+      console.error('❌ Unexpected error in checkOnboardingStatus:', error);
       setHasOnboarded(false);
       await AsyncStorage.setItem(ONBOARDED_KEY, 'false');
-    } finally {
-      setLoading(false);
     }
   };
 

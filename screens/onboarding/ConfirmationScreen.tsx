@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ActivityIndicator, 
+  ScrollView, 
+  Alert,
+  BackHandler
+} from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './OnboardingLayout';
 import { useOnboarding, SkinType, SkinCondition, Gender } from '../../context/OnboardingContext';
 import { supabase } from '../../config/supabaseClient';
@@ -10,48 +18,123 @@ const ConfirmationScreen = () => {
   const navigation = useNavigation();
   const { userProfile, completeOnboarding, isLoading, error } = useOnboarding();
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  
+  // Prevent back button during profile creation
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (isLoading || processingComplete) {
+          // Prevent going back while processing
+          return true;
+        }
+        return false;
+      };
+
+      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+    }, [isLoading, processingComplete])
+  );
+
+  // Handle timeout for hanging operations
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    if (processingComplete && !isLoading) {
+      // If processing is marked complete but we're not navigating away,
+      // something might be stuck
+      timeoutId = setTimeout(() => {
+        console.log("ConfirmationScreen: Timeout triggered, operation may be hanging");
+        Alert.alert(
+          "Taking too long",
+          "The operation is taking longer than expected. Would you like to continue waiting or restart?",
+          [
+            { 
+              text: "Continue waiting", 
+              style: 'cancel' 
+            },
+            { 
+              text: "Restart", 
+              onPress: () => {
+                setProcessingComplete(false);
+                setLocalError(null);
+              }
+            }
+          ]
+        );
+      }, 10000); // 10 second timeout
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [processingComplete, isLoading]);
 
   const handleFinish = async () => {
+    // Validate data before proceeding
+    if (!userProfile.name || userProfile.name.trim() === '') {
+      setLocalError("Name is required to complete your profile");
+      return;
+    }
+    
+    setLocalError(null);
+    setProcessingComplete(true);
+    
     try {
-      // First complete the onboarding process which updates the database
-      await completeOnboarding();
-      setProcessingComplete(true);
+      console.log("Starting profile creation process...");
       
-      if (!error) {
-        // Store onboarding status in AsyncStorage immediately
-        await AsyncStorage.setItem('skintellect_onboarded', 'true');
-        
-        // Force the session to refresh
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          console.error("Error refreshing session:", refreshError);
-          Alert.alert(
-            "Error", 
-            "There was an issue completing your setup. Please try restarting the app.",
-            [{ text: "OK" }]
-          );
-          return;
-        }
-        
-        // Reset navigation to MainTabs directly
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
+      // Complete the onboarding process which updates the database
+      await completeOnboarding();
+      
+      // Check for error from context
+      if (error) {
+        console.error("Error after completeOnboarding:", error);
+        setLocalError(error);
+        setProcessingComplete(false);
+        return;
       }
+      
+      console.log("Profile created successfully");
+      
+      // Store onboarding status in AsyncStorage immediately
+      await AsyncStorage.setItem('skintellect_onboarded', 'true');
+      
+      console.log("Refreshing session...");
+      
+      // Force the session to refresh
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        console.error("Error refreshing session:", refreshError);
+        setLocalError(`Session refresh error: ${refreshError.message}`);
+        setProcessingComplete(false);
+        return;
+      }
+      
+      console.log("Session refreshed successfully, navigating to MainTabs");
+      
+      // Reset navigation to MainTabs directly
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       console.error("Error in handleFinish:", err);
+      setLocalError(errorMessage);
+      setProcessingComplete(false);
+      
       Alert.alert(
         "Error", 
         "There was an issue completing your setup. Please try again.",
         [{ text: "OK" }]
       );
-      setProcessingComplete(false);
     }
   };
 
   const handleBack = () => {
-    navigation.goBack();
+    if (!isLoading && !processingComplete) {
+      navigation.goBack();
+    }
   };
 
   // Helper function to get label from value
@@ -105,15 +188,15 @@ const ConfirmationScreen = () => {
           Please review your profile information
         </Text>
 
-        {error && (
+        {(localError || error) && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{localError || error}</Text>
           </View>
         )}
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Name</Text>
-          <Text style={styles.infoValue}>{userProfile.name}</Text>
+          <Text style={styles.infoValue}>{userProfile.name || 'Not provided'}</Text>
         </View>
 
         <View style={styles.infoCard}>
@@ -132,7 +215,7 @@ const ConfirmationScreen = () => {
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Skin Conditions</Text>
-          {userProfile.skinConditions.length > 0 ? (
+          {userProfile.skinConditions && userProfile.skinConditions.length > 0 ? (
             userProfile.skinConditions.map((condition) => (
               <Text key={condition} style={styles.conditionItem}>
                 • {getSkinConditionLabel(condition)}
@@ -147,7 +230,7 @@ const ConfirmationScreen = () => {
           You can always update your information later in your profile settings.
         </Text>
 
-        {isLoading && (
+        {(isLoading || processingComplete) && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#D43F57" />
             <Text style={styles.loadingText}>Creating your profile...</Text>
